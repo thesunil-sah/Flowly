@@ -1,0 +1,25 @@
+[project]
+name = "flowly-api"
+version = "0.1.0"
+description = "Flowly backend API (FastAPI)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

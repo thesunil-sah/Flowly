@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (uv · ruff · pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv + Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install (frozen)
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run ruff check .
+      - name: Format check
+        run: uv run ruff format --check .
+      - name: Test
+        run: uv run pytest
+
+  frontend:
+    name: Frontend (pnpm · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node (from .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Enable corepack (pnpm)
+        run: corepack enable
+      - name: Install (frozen)
+        run: pnpm install --frozen-lockfile
+      - name: Build web
+        run: pnpm --filter web build
