@@ -1,2 +1,8 @@
 packages:
   - "apps/*"
+
+# Native deps allowed to run install build scripts (pnpm blocks these by default).
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+  "@tailwindcss/oxide": true
