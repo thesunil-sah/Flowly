@@ -7,7 +7,7 @@ uv monorepo with three apps:
 |---|---|---|
 | Dashboard / marketing | `apps/web` | Next.js (App Router, TypeScript strict) |
 | Backend API | `apps/api` | FastAPI + uv (Python 3.12) |
-| Tracking script | `apps/tracker` | Vanilla JS (stub in Phase 0) |
+| Tracking script | `apps/tracker` | Vanilla JS, zero runtime deps (< 2 KB minified) |
 
 > **Phase 0 status:** reproducible skeleton only. The only runtime behaviour is
 > `GET /health` and a placeholder web page. See `CLAUDE.md` for the full spec.
@@ -62,6 +62,30 @@ uv run ruff format --check .                # no changes
 pnpm --filter web build                     # production build
 pnpm --filter web lint
 ```
+
+## Tracking script (`apps/tracker`)
+
+The vanilla-JS pageview tracker customers install on their site. Build the minified
+output (`dist/script.js`, < 2 KB) with:
+
+```bash
+pnpm --filter tracker build          # -> apps/tracker/dist/script.js
+# or from the root: pnpm build:tracker
+```
+
+Install snippet (the endpoint is derived from the script's own origin; override with
+`data-api`):
+
+```html
+<script defer src="https://your-host/script.js" data-site="YOUR_SITE_ID"></script>
+```
+
+It sends a pageview to `POST {origin}/collect` via `navigator.sendBeacon` on first load and
+on SPA navigations (`pushState`/`replaceState`/`popstate`), and fails silently — it can never
+throw or break the host page. Manual test harness: `apps/tracker/test/index.html` (see the
+comment at the top of that file). Note: `/collect` itself lands in Phase 3, so until then the
+beacons are expected to fail at the network layer — verify in DevTools that they *fire* with
+the right URL and payload.
 
 ## Port overrides
 
