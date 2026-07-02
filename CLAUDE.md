@@ -160,7 +160,11 @@ strings in the env vars (`DATABASE_URL`, `CLICKHOUSE_*`, `REDIS_URL`); it never 
 
 **Postgres (metadata):**
 ```
-accounts        id, email (unique), password_hash, plan, trial_ends_at, created_at
+accounts        id, email (unique), username (unique), password_hash (nullable —
+                null for OAuth-only accounts), email_verified_at, plan (tier),
+                status (lifecycle), trial_ends_at, created_at
+identities      id, account_id (FK), provider ("google"|"github"),
+                provider_user_id, created_at   (unique(provider, provider_user_id))
 sites           id, account_id (FK), site_id (public, unique), domain, created_at
 subscriptions   id, account_id (FK), stripe_customer_id, stripe_subscription_id,
                 status, plan, current_period_end
@@ -251,6 +255,7 @@ All listed in `.env.example`. Real values live in `.env` (gitignored).
 | Postgres | `DATABASE_URL` |
 | ClickHouse | `CLICKHOUSE_HOST`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`, `CLICKHOUSE_DB` |
 | Redis | `REDIS_URL` |
+| Social OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (a provider is enabled only when both its id + secret are set) |
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS` |
 | Email | `EMAIL_API_KEY` |
 | Tracking | `VISITOR_SALT_SECRET` (seed for the daily salt), `TRACKER_SCRIPT_URL` |
@@ -304,7 +309,7 @@ stripe listen --forward-to localhost:8000/billing/webhook
 
 - **Backend tests live in `apps/api/tests/`**, mirroring the `app/` structure. Use `pytest` + `pytest-asyncio`.
 - **Always cover the unforgiving paths:** signup/login + token verification, `/collect` ingestion, visitor hashing (no raw IP leaks), **site-ownership checks**, Stripe webhook **idempotency**, and usage metering / limit enforcement.
-- **Frontend:** Vitest for units; a Playwright test for the onboarding flow (sign up -> install -> first data -> upgrade) is worth it once Phase 4 lands.
+- **Frontend:** Vitest for units; a Playwright test for the full flow (sign up -> install -> first data -> upgrade) is worth it once onboarding + billing land (Phases 6–7).
 - **Every bug fix adds a regression test.** Run the full suite before committing.
 
 ---
@@ -359,112 +364,100 @@ A checklist item is done only when **all** of these are true:
 
 ---
 
-## Features — build checklist (feature-wise micro-tasks)
+## Features — build checklist
 
-Build top-down; finish a phase before starting the next. Each feature notes **where** it is built.
+One focused theme per phase. Build them in order — finish a phase before starting the next.
+Each phase has a **Goal** (what "done" looks like) and lists **where** each piece is built.
 
-### Phase 0 — Foundations & setup
-- [ ] **Monorepo + tooling** (repo root)
-  - [x] Root `package.json` + `pnpm-workspace.yaml` (`apps/*`)
-  - [x] `.gitignore`, `.env.example`, root `README.md`
-- [ ] **Backend bootstrap** (`apps/api`)
-  - [x] `pyproject.toml` + `.python-version` (3.12); `uv sync` creates `.venv/`
-  - [x] App factory `app/main.py` + settings `app/config.py`
-  - [x] Folder skeleton: `routers/ services/ db/ models/ core/ workers/ migrations/ tests/`
-  - [x] `GET /health` route
-- [ ] **Local services reachable** (Postgres + ClickHouse + Redis running)
-  - [ ] Clients: `db/postgres.py`, `db/clickhouse.py`, `db/redis.py`
-  - [ ] Confirm each connects via its env-var connection string
-- [ ] **Postgres schema + migrations** (`apps/api/app/migrations`)
-  - [ ] Alembic init + baseline
-  - [ ] Tables: `accounts`, `sites`, `subscriptions` (see Core data model)
-- [ ] **Authentication (custom)** (`apps/api/app/services/auth.py`, `routers/auth.py`, `core/security.py`, `apps/web`)
-  - [ ] Password hashing util (argon2/bcrypt) in `core/security.py`
-  - [ ] `POST /auth/signup` — create account, store `password_hash`
-  - [ ] `POST /auth/login` — verify password, issue access + refresh JWT
-  - [ ] `POST /auth/refresh` — rotate access token from a valid refresh token
-  - [ ] JWT verification dependency in `core/security.py` -> `require_user`
-  - [ ] `require_user` applied to every authed router; resolve `user_id -> account` (tenant scoping)
-  - [ ] Rate-limit `/auth/login`
-  - [ ] Frontend: custom `sign-in/` + `sign-up/` pages calling `/auth/*`
-  - [ ] Frontend: store token, attach it in the `lib/` api client, guard `(dashboard)` routes
-  - [ ] (Optional, later) social OAuth (Google/GitHub) — defer; it's substantial to build yourself
+### Phase 0 — Project setup, dependencies & first push
+**Goal:** a skeleton that installs, runs, lints clean, has one passing test, and is on GitHub.
+- [x] Monorepo scaffold: root `package.json` + `pnpm-workspace.yaml` (`apps/*`), `.gitignore`, `.env.example`, `README.md`
+- [x] Create the three app folders: `apps/web`, `apps/api`, `apps/tracker`
+- [x] Backend deps: `apps/api/pyproject.toml` + `.python-version` (3.12); `uv sync` creates `.venv/`
+- [x] Frontend deps: Next.js app in `apps/web`; `pnpm install`
+- [x] Minimal API: app factory `app/main.py`, settings `app/config.py`, `GET /health`
+- [x] Minimal web: Next.js runs and shows a placeholder page
+- [x] One passing test (`apps/api/tests/test_health.py`) and `ruff` clean
+- [x] Verify locally: `uv run uvicorn ...`, `pnpm --filter web dev`, `uv run pytest` all work
+- [x] Init git, create the GitHub repo, and push
 
-### Phase 1 — Tracking + ingestion (the core)
-- [ ] **Tracking script** (`apps/tracker/src/script.js`)
-  - [ ] Read `data-site` (site_id) from the script tag
-  - [ ] Send pageview via `navigator.sendBeacon` to `/collect`
-  - [ ] Payload: site_id, path, referrer, screen width, language
-  - [ ] SPA support: wrap `history.pushState` + listen for `popstate`
-  - [ ] Wrap everything in try/catch; fail silently
-  - [ ] Build + minify -> `apps/tracker/dist/script.js`; serve from CDN
-- [ ] **Collect endpoint** (`routers/collect.py` -> `services/ingest.py`)
-  - [ ] `POST /collect`: public, open CORS, returns `202` immediately
-  - [ ] Validate payload via Pydantic model in `models/`
-  - [ ] Per-site_id rate limiting (`core/`)
-- [ ] **Cookieless visitor ID** (`services/visitor.py`)
-  - [ ] Hash `IP + UA + daily salt`; never store/log raw IP
-  - [ ] Daily salt rotation (Redis `salt:{date}`, 24h TTL)
-- [ ] **Bot filtering** (`services/ingest.py`)
-  - [ ] UA bot list + heuristics; drop before counting
-- [ ] **Buffer + batch writer** (`db/redis.py`, `workers/batch_writer.py`)
-  - [ ] Push validated event to `stream:events`
-  - [ ] Worker batches the stream + bulk-inserts into ClickHouse
-- [ ] **ClickHouse events table** (`db/clickhouse.py` + init script)
-  - [ ] `events` schema (see Core data model)
+### Phase 1 — Database & auth system
+**Goal:** a user can sign up, log in, and reach a protected dashboard.
+- [x] Local services reachable (Postgres + Redis) via their env-var connection strings — verified live; ClickHouse client present, connectivity used from P3
+- [x] DB clients: `db/postgres.py`, `db/clickhouse.py`, `db/redis.py`
+- [x] Postgres schema + Alembic baseline: `accounts`, `sites`, `subscriptions` (see Core data model) — migration applied to Postgres (`alembic upgrade head`)
+- [x] Password hashing util (argon2/bcrypt) in `core/security.py`
+- [x] `POST /auth/signup` (`routers/auth.py` -> `services/auth.py`): create account, store `password_hash`
+- [x] `POST /auth/login`: verify password, issue access + refresh JWT
+- [x] `POST /auth/refresh`: rotate the access token
+- [x] JWT verification dependency `require_user` in `core/security.py`; tenant scoping (`user_id -> account`)
+- [x] Rate-limit `/auth/login`
+- [x] Frontend: custom `sign-in/` + `sign-up/` pages calling `/auth/*`; store token in `lib/` api client; guard `(dashboard)` routes
+- [x] Tests: signup, login, token verify, protected route rejects missing/invalid token
 
-### Phase 2 — Real-time / live (headline feature)
-- [ ] **Active users** (`services/live.py`)
-  - [ ] On event: `ZADD active:{site_id} {ts} {visitor_hash}`
-  - [ ] Count online: `ZCOUNT` last 5 min; evict stale with `ZREMRANGEBYSCORE`
-- [ ] **Pub/sub publish** (`services/ingest.py`)
-  - [ ] `PUBLISH live:{site_id} {event_json}` on each event
-- [ ] **WebSocket endpoint** (`routers/live.py`)
-  - [ ] `WS /live/{site_id}` — authed + verify site ownership
-  - [ ] Subscribe to the Redis channel, forward to the client
-- [ ] **Live dashboard view** (`apps/web/app/(dashboard)/live`)
-  - [ ] Live visitor counter, live event feed, current pages list
+### Phase 2 — Tracking script (core)
+**Goal:** a tiny script that, dropped on a page, fires a pageview to the API.
+- [ ] `apps/tracker/src/script.js`: read `data-site` (site_id) from the script tag
+- [ ] Send pageview via `navigator.sendBeacon` to `/collect`
+- [ ] Payload: site_id, path, referrer, screen width, language
+- [ ] SPA support: wrap `history.pushState` + listen for `popstate`
+- [ ] Wrap everything in try/catch; fail silently; never break the host page
+- [ ] Build + minify -> `apps/tracker/dist/script.js` (< 2 KB); serve from CDN
+- [ ] Manual test: drop the script on a test page (use a hand-made `sites` row) and confirm the request fires
 
-### Phase 3 — Core dashboard metrics
-- [ ] **Stats queries** (`services/stats.py`)
-  - [ ] Overview aggregates (visitors, sessions, pageviews, bounce, avg duration)
-  - [ ] Time-series for the trend chart
-  - [ ] Sources + UTM, audience (geo/device/browser/os), top/entry/exit pages
-- [ ] **Stats endpoints** (`routers/stats.py`)
-  - [ ] `GET /stats/overview`, `/stats/sources`, `/stats/pages`, etc. — authed + ownership check
-- [ ] **Dashboard UI** (`apps/web/components`, `apps/web/hooks`)
-  - [ ] Date-range picker + period comparison
-  - [ ] Charts (Recharts), metric cards, data tables
+### Phase 3 — Ingestion pipeline
+**Goal:** events from the script are validated, anonymised, and stored durably.
+- [ ] `POST /collect` (`routers/collect.py` -> `services/ingest.py`): public, open CORS, returns `202` fast
+- [ ] Validate payload via a Pydantic model in `models/`
+- [ ] Cookieless visitor ID (`services/visitor.py`): hash `IP + UA + daily salt`; rotate salt daily (Redis `salt:{date}`, 24h TTL); never log raw IP
+- [ ] Bot filtering (`services/ingest.py`): UA list + heuristics; drop before counting
+- [ ] Per-site_id rate limiting (`core/`)
+- [ ] Buffer: push the validated event to `stream:events` (`db/redis.py`)
+- [ ] Batch writer worker (`workers/batch_writer.py`): drain the stream, bulk-insert to ClickHouse
+- [ ] ClickHouse `events` table (`db/clickhouse.py` + init script) — see Core data model
+- [ ] Tests: bad payload rejected, bot dropped, valid event lands in ClickHouse
 
-### Phase 4 — Onboarding + billing (trial -> paid)
-- [ ] **Add-site flow** (`routers/sites.py`, `services/sites.py`, web)
-  - [ ] Create site -> generate `site_id` -> store in `sites`
-  - [ ] Show the install snippet with their site_id
-  - [ ] Install verification: poll for first event, flip "waiting" -> "connected"
-- [ ] **Install guides** (`apps/web`)
-  - [ ] Snippets for Next.js, WordPress, Shopify, Webflow, GTM
-- [ ] **Usage metering** (`services/billing.py`, Redis)
-  - [ ] Per-account monthly pageview counter (`usage:{account_id}:{YYYYMM}`)
-  - [ ] Limit enforcement + 80% warning
-- [ ] **Stripe** (`routers/billing.py`, `services/billing.py`)
-  - [ ] Checkout session with 7-day trial
-  - [ ] Customer Portal link (manage/cancel)
-  - [ ] Webhooks (signed + idempotent): subscription created/updated, `trial_will_end`, payment failed
-  - [ ] Annual plan price option
-  - [ ] Link Stripe customer -> `subscriptions`
+### Phase 4 — Real-time / live traffic (headline feature)
+**Goal:** the dashboard shows visitors live.
+- [ ] Active users (`services/live.py`): `ZADD active:{site_id} {ts} {visitor_hash}`; count online with `ZCOUNT` (last 5 min); evict stale with `ZREMRANGEBYSCORE`
+- [ ] Pub/sub publish (`services/ingest.py`): `PUBLISH live:{site_id} {event_json}` per event
+- [ ] WebSocket (`routers/live.py`): `WS /live/{site_id}` — authed + verify site ownership; subscribe to the Redis channel and forward to the client
+- [ ] Live dashboard view (`apps/web/app/(dashboard)/live`): live counter, live feed, current pages
 
-### Phase 5 — Growth & retention (micro-SaaS engine)
-- [ ] **Weekly email digest** (`workers/`, email provider)
-- [ ] **Public / shareable dashboard** (read-only route + share token)
-- [ ] **"Powered by Flowly" badge** on free tier
-- [ ] **Onboarding email sequence**
+### Phase 5 — Dashboard metrics (historical)
+**Goal:** the core reports users log in to see.
+- [ ] Stats queries (`services/stats.py`): overview (visitors/sessions/pageviews/bounce/duration), time-series, sources + UTM, audience (geo/device/browser/os), top/entry/exit pages
+- [ ] Stats endpoints (`routers/stats.py`): `/stats/overview`, `/stats/sources`, `/stats/pages`, … — authed + ownership check
+- [ ] Dashboard UI (`apps/web/components`, `apps/web/hooks`): date-range picker + comparison, charts (Recharts), metric cards, tables
 
-### Phase 6 — Privacy & trust
-- [ ] **Retention deletion job** (`workers/`, per-plan window)
-- [ ] **CSV export** endpoint (`routers/stats.py`)
-- [ ] **Privacy / GDPR page** documenting the cookieless approach
+### Phase 6 — Site onboarding
+**Goal:** a user can add their own site and confirm it's connected.
+- [ ] Add-site flow (`routers/sites.py`, `services/sites.py`, web): create site -> generate `site_id` -> store; show the install snippet
+- [ ] Install verification: poll for the first event, flip "waiting" -> "connected"
+- [ ] Install guides: Next.js, WordPress, Shopify, Webflow, GTM
 
-### Phase 7 — Premium (DEFER until users ask)
+### Phase 7 — Billing & usage metering
+**Goal:** trial converts to paid, metered by pageviews.
+- [ ] Usage metering (`services/billing.py`, Redis): per-account monthly counter (`usage:{account_id}:{YYYYMM}`); limit enforcement + 80% warning
+- [ ] Stripe (`routers/billing.py`, `services/billing.py`): Checkout with 7-day trial; Customer Portal link; annual plan price
+- [ ] Webhooks (signed + idempotent): subscription created/updated, `trial_will_end`, payment failed; link Stripe customer -> `subscriptions`
+- [ ] Tests: webhook idempotency, limit enforcement
+
+### Phase 8 — Growth & retention
+**Goal:** the micro-SaaS acquisition + retention loop.
+- [ ] Weekly email digest (`workers/`, email provider)
+- [ ] Public / shareable dashboard (read-only route + share token)
+- [ ] "Powered by Flowly" badge on free tier
+- [ ] Onboarding email sequence
+
+### Phase 9 — Privacy & trust
+**Goal:** deliver on the privacy promise, publicly.
+- [ ] Retention deletion job (`workers/`, per-plan window)
+- [ ] CSV export endpoint (`routers/stats.py`)
+- [ ] Privacy / GDPR page documenting the cookieless approach
+
+### Phase 10 — Premium (DEFER until users ask)
+**Goal:** upsell features — build only when paying users request them.
 - [ ] Custom events + conversion goals
 - [ ] Custom dashboards
 - [ ] Custom segments / cohorts
@@ -477,4 +470,4 @@ Build top-down; finish a phase before starting the next. Each feature notes **wh
 
 ---
 
-_Last updated: 2026-07-01 — Phase 0 scaffold (monorepo, backend bootstrap, `/health`)._
+_Last updated: 2026-07-02 — Phase 1 (database & auth) built, plus email verification (6-digit codes), username + login-by-email-or-username, password reset, and Google/GitHub social login (`identities` table, link-by-verified-email). Keep this date current whenever the stack or rules change._
