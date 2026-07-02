@@ -56,5 +56,19 @@ class Settings(BaseSettings):
     github_client_id: str = ""  # GITHUB_CLIENT_ID
     github_client_secret: str = ""  # GITHUB_CLIENT_SECRET
 
+    # --- Ingestion (Phase 3) ----------------------------------------------
+    # Pepper folded into the cookieless visitor hash. Dev-only default so
+    # imports never crash; production MUST override with a long random value.
+    visitor_salt_secret: str = "dev-insecure-visitor-salt"  # VISITOR_SALT_SECRET
+    # Path to a MaxMind GeoLite2-City .mmdb file. Blank -> geo enrichment
+    # fails open (country/region left empty); ingestion never breaks.
+    geoip_db_path: str = ""  # GEOIP_DB_PATH
+    # Approximate cap for the Redis ingest stream (XADD MAXLEN ~). Sized well
+    # above the batch writer's drain rate so healthy operation never trims.
+    stream_maxlen: int = 1_000_000  # STREAM_MAXLEN
+    # Per-(site_id, IP) ingestion rate limit: a generous abuse backstop.
+    collect_rate_limit: int = 600  # COLLECT_RATE_LIMIT (events per window)
+    collect_rate_window: int = 60  # COLLECT_RATE_WINDOW (seconds)
+
 
 settings = Settings()

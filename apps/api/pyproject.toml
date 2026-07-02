@@ -16,6 +16,7 @@ dependencies = [
     "clickhouse-connect[async]>=0.7",
     "pydantic[email]>=2.7",
     "httpx>=0.28.1",
+    "geoip2>=5.2.0",
 ]
 
 [dependency-groups]
