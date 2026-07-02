@@ -85,6 +85,21 @@ async def test_duplicate_email_and_username_conflict(client: AsyncClient) -> Non
     assert dup_username.status_code == 409
 
 
+async def test_concurrent_signup_race_returns_409(client: AsyncClient, monkeypatch) -> None:
+    # First signup lands and commits normally.
+    assert (await _signup(client)).status_code == 201
+
+    # Simulate losing the check-then-insert race: force the pre-check to miss,
+    # so the duplicate insert reaches the DB and trips the unique constraint.
+    async def _no_clash(*_a, **_k):
+        return None
+
+    monkeypatch.setattr("app.services.auth._find_signup_clash", _no_clash)
+    raced = await _signup(client)
+    # The IntegrityError must surface as a clean 409, never a 500.
+    assert raced.status_code == 409
+
+
 async def test_email_case_insensitive(client: AsyncClient) -> None:
     await _signup(client, email="Alice@Example.com")
     dup = await _signup(client, username="alice2", email="  alice@example.COM ")
