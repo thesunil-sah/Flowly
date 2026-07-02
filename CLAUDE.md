@@ -397,13 +397,13 @@ Each phase has a **Goal** (what "done" looks like) and lists **where** each piec
 
 ### Phase 2 — Tracking script (core)
 **Goal:** a tiny script that, dropped on a page, fires a pageview to the API.
-- [ ] `apps/tracker/src/script.js`: read `data-site` (site_id) from the script tag
-- [ ] Send pageview via `navigator.sendBeacon` to `/collect`
-- [ ] Payload: site_id, path, referrer, screen width, language
-- [ ] SPA support: wrap `history.pushState` + listen for `popstate`
-- [ ] Wrap everything in try/catch; fail silently; never break the host page
-- [ ] Build + minify -> `apps/tracker/dist/script.js` (< 2 KB); serve from CDN
-- [ ] Manual test: drop the script on a test page (use a hand-made `sites` row) and confirm the request fires
+- [x] `apps/tracker/src/script.js`: read `data-site` (site_id) from the script tag
+- [x] Send pageview via `navigator.sendBeacon` to `/collect` (endpoint derived from the script's own origin, `data-api` override; `text/plain` body → no CORS preflight, with a `fetch` keepalive fallback)
+- [x] Payload: site_id, path (no query string), referrer, screen width, utm_source/medium/campaign (`language` dropped — no `events` column to store it)
+- [x] SPA support: wrap `history.pushState`/`replaceState` + listen for `popstate`; same-path dedupe
+- [x] Wrap everything in try/catch; fail silently; never break the host page
+- [x] Build + minify -> `apps/tracker/dist/script.js` (~1.0 KB, < 2 KB) via esbuild; serve from CDN
+- [x] Manual test: `apps/tracker/test/index.html` harness (drop-in with a hand-made `sites` row); verified the beacon fires with the right payload
 
 ### Phase 3 — Ingestion pipeline
 **Goal:** events from the script are validated, anonymised, and stored durably.
@@ -470,4 +470,4 @@ Each phase has a **Goal** (what "done" looks like) and lists **where** each piec
 
 ---
 
-_Last updated: 2026-07-02 — Phase 1 (database & auth) built, plus email verification (6-digit codes), username + login-by-email-or-username, password reset, and Google/GitHub social login (`identities` table, link-by-verified-email). Keep this date current whenever the stack or rules change._
+_Last updated: 2026-07-02 — Phase 2 (tracking script core) built: vanilla-JS `apps/tracker` sends pageviews to `/collect` via `sendBeacon` (origin-derived endpoint, `text/plain` no-preflight body, `fetch` fallback), SPA `pushState`/`replaceState`/`popstate` with same-path dedupe, client-side UTM capture; built to `dist/script.js` (~1.0 KB) with esbuild. Phase 1 (database & auth) built, plus email verification (6-digit codes), username + login-by-email-or-username, password reset, and Google/GitHub social login (`identities` table, link-by-verified-email). Keep this date current whenever the stack or rules change._

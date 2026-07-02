@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flowly tracker — manual test</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+      button, a.btn { display: inline-block; margin: 0.25rem 0.25rem 0.25rem 0; padding: 0.4rem 0.7rem; }
+      code { background: #f2f2f2; padding: 0 0.25rem; border-radius: 3px; }
+      p.hint { color: #555; }
+    </style>
+
+    <!--
+      Manual test harness for the tracker (dev only).
+
+      1. Build first:  pnpm --filter tracker build
+      2. Serve this folder from the SAME origin you want /collect on. In dev the
+         API is http://localhost:8000, so serve the built script from there, e.g.
+         drop dist/script.js next to a static server on :8000, OR set data-api
+         below to point at the API origin explicitly.
+      3. Open DevTools -> Network, filter "collect", and watch the beacons.
+
+      Note: /collect does not exist until Phase 3, so requests show as failed /
+      (net::ERR) — that's expected. What we verify here is that the beacon FIRES,
+      with the right URL + payload, and with NO preceding OPTIONS preflight.
+    -->
+    <script defer src="../dist/script.js" data-site="test-site" data-api="http://localhost:8000"></script>
+  </head>
+  <body>
+    <h1>Flowly tracker — manual test</h1>
+    <p class="hint">
+      Open <strong>DevTools → Network</strong> (filter <code>collect</code>). Each action below should
+      fire exactly one <code>POST</code> to <code>…/collect</code> with a <code>text/plain</code> body and
+      <strong>no OPTIONS preflight</strong>. Repeating the same path must NOT fire again.
+    </p>
+
+    <h2>SPA navigation</h2>
+    <button onclick="history.pushState({}, '', '/pricing')">pushState → /pricing</button>
+    <button onclick="history.pushState({}, '', '/features')">pushState → /features</button>
+    <button onclick="history.pushState({}, '', '/pricing')">pushState → /pricing (again — dedupe: no fire)</button>
+    <button onclick="history.back()">history.back() (popstate)</button>
+
+    <h2>UTM capture</h2>
+    <button onclick="history.pushState({}, '', '/lp?utm_source=newsletter&utm_medium=email&utm_campaign=summer')">
+      pushState → /lp?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=summer
+    </button>
+    <p class="hint">The beacon payload should carry <code>utm_source/medium/campaign</code>; <code>path</code> stays <code>/lp</code> (no query).</p>
+
+    <h2>Never-break-host</h2>
+    <p class="hint">
+      A second copy of the script with a missing <code>data-site</code> is loaded below — it must no-op
+      silently (no console error, no beacon).
+    </p>
+    <script defer src="../dist/script.js" data-api="http://localhost:8000"></script>
+  </body>
+</html>

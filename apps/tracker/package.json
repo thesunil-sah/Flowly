@@ -2,5 +2,12 @@
   "name": "tracker",
   "private": true,
   "version": "0.0.0",
-  "description": "Flowly tracking script (vanilla JS, zero deps). Stub in Phase 0."
+  "description": "Flowly tracking script (vanilla JS, zero runtime deps).",
+  "scripts": {
+    "build": "esbuild src/script.js --minify --format=iife --outfile=dist/script.js",
+    "size": "esbuild src/script.js --minify --format=iife | wc -c"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
 }

@@ -11,6 +11,7 @@ from uuid import UUID
 
 from redis.asyncio import Redis
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -47,6 +48,12 @@ async def _get_by_email(session: AsyncSession, email: str) -> Account | None:
     return await session.scalar(select(Account).where(Account.email == email))
 
 
+async def _find_signup_clash(session: AsyncSession, email: str, username: str) -> Account | None:
+    return await session.scalar(
+        select(Account).where(or_(Account.email == email, Account.username == username))
+    )
+
+
 async def signup(
     session: AsyncSession, redis: Redis, username: str, email: str, password: str
 ) -> str:
@@ -55,9 +62,7 @@ async def signup(
     Returns the code (for local-dev surfacing). Raises ConflictError if the
     email or username is taken.
     """
-    clash = await session.scalar(
-        select(Account).where(or_(Account.email == email, Account.username == username))
-    )
+    clash = await _find_signup_clash(session, email, username)
     if clash is not None:
         if clash.email == email:
             raise ConflictError("An account with this email already exists.")
@@ -73,7 +78,13 @@ async def signup(
         trial_ends_at=datetime.now(UTC) + timedelta(days=TRIAL_DAYS),
     )
     session.add(account)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        # Lost the race with a concurrent signup that passed the pre-check too:
+        # the DB unique constraint is the real arbiter. Surface a clean 409
+        # instead of letting the IntegrityError bubble up as a 500.
+        raise ConflictError("An account with this email or username already exists.") from exc
     return await verification.issue_code(redis, "verify", email)
 
 
