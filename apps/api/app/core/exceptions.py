@@ -51,6 +51,13 @@ class RateLimitError(AppError):
     message = "Too many requests. Please try again later."
 
 
+class ValidationError(AppError):
+    """A request payload failed service-layer validation (malformed body)."""
+
+    status_code = 422
+    message = "Invalid payload."
+
+
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 

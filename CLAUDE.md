@@ -232,6 +232,7 @@ stream:events               STREAM  ingest buffer drained by the batch writer
 | Postgres migrations | **Alembic** | hand-written SQL migrations |
 | ClickHouse | **clickhouse-connect** (async) | an ORM over ClickHouse |
 | Redis | **redis-py** (async client) | aioredis (deprecated) |
+| Geo-IP | **geoip2** (MaxMind GeoLite2-City `.mmdb`) — fail-open | a paid geo API on the hot path |
 | Background work | FastAPI tasks / a worker reading **Redis Streams** | Celery (overkill now) |
 | Billing | **Stripe** (Checkout + Customer Portal + webhooks) | manual invoicing |
 | Email | a transactional provider (Resend / Postmark) | your own SMTP |
@@ -258,7 +259,7 @@ All listed in `.env.example`. Real values live in `.env` (gitignored).
 | Social OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (a provider is enabled only when both its id + secret are set) |
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS` |
 | Email | `EMAIL_API_KEY` |
-| Tracking | `VISITOR_SALT_SECRET` (seed for the daily salt), `TRACKER_SCRIPT_URL` |
+| Tracking / Ingestion | `VISITOR_SALT_SECRET` (pepper for the daily visitor hash — prod must override), `TRACKER_SCRIPT_URL`, `GEOIP_DB_PATH` (MaxMind GeoLite2-City `.mmdb`; blank → geo fails open), `STREAM_MAXLEN`, `COLLECT_RATE_LIMIT`, `COLLECT_RATE_WINDOW` |
 
 **Rule:** add a variable here and to `.env.example` in the same change that introduces it.
 `JWT_SECRET` must be a long random value and must never be committed.
@@ -407,15 +408,16 @@ Each phase has a **Goal** (what "done" looks like) and lists **where** each piec
 
 ### Phase 3 — Ingestion pipeline
 **Goal:** events from the script are validated, anonymised, and stored durably.
-- [ ] `POST /collect` (`routers/collect.py` -> `services/ingest.py`): public, open CORS, returns `202` fast
-- [ ] Validate payload via a Pydantic model in `models/`
-- [ ] Cookieless visitor ID (`services/visitor.py`): hash `IP + UA + daily salt`; rotate salt daily (Redis `salt:{date}`, 24h TTL); never log raw IP
-- [ ] Bot filtering (`services/ingest.py`): UA list + heuristics; drop before counting
-- [ ] Per-site_id rate limiting (`core/`)
-- [ ] Buffer: push the validated event to `stream:events` (`db/redis.py`)
-- [ ] Batch writer worker (`workers/batch_writer.py`): drain the stream, bulk-insert to ClickHouse
-- [ ] ClickHouse `events` table (`db/clickhouse.py` + init script) — see Core data model
-- [ ] Tests: bad payload rejected, bot dropped, valid event lands in ClickHouse
+- [x] `POST /collect` (`routers/collect.py` -> `services/ingest.py`): public, open CORS, returns `202` fast
+- [x] Validate payload via a Pydantic model in `models/` (`models/events.py`, `extra="ignore"`, `screen_w` clamped)
+- [x] Cookieless visitor ID (`services/visitor.py`): hash `IP + UA + daily salt`; rotate salt daily (Redis `salt:{date}`, 24h TTL, `SET NX`); never log raw IP
+- [x] Bot filtering (`services/useragent.py`): UA marker list + empty-UA; drop before counting
+- [x] Per-site_id rate limiting (`core/ratelimit.py`): non-raising `is_rate_limited` keyed by `(site_id, IP)`; over-limit dropped with `202`
+- [x] Buffer: push the validated, **IP-free** event to `stream:events` (bounded `MAXLEN ~`)
+- [x] Batch writer worker (`workers/batch_writer.py`): consumer group + `XAUTOCLAIM` reclaim, bulk-insert to ClickHouse, `XACK` after success
+- [x] ClickHouse `events` table (`db/clickhouse.py` + `--init`) — see Core data model; adds `event_id` (UUID) for dedupe
+- [x] Enrichment on the hot path: geo (`services/geo.py`, fail-open), device/browser/os (`services/useragent.py`), `source` from UTM/referrer vs `Origin`
+- [x] Tests: bad payload rejected, bot dropped, valid event enqueued (IP-free), visitor-hash determinism/no-leak, batch-writer insert + reclaim
 
 ### Phase 4 — Real-time / live traffic (headline feature)
 **Goal:** the dashboard shows visitors live.
@@ -470,4 +472,4 @@ Each phase has a **Goal** (what "done" looks like) and lists **where** each piec
 
 ---
 
-_Last updated: 2026-07-02 — Phase 2 (tracking script core) built: vanilla-JS `apps/tracker` sends pageviews to `/collect` via `sendBeacon` (origin-derived endpoint, `text/plain` no-preflight body, `fetch` fallback), SPA `pushState`/`replaceState`/`popstate` with same-path dedupe, client-side UTM capture; built to `dist/script.js` (~1.0 KB) with esbuild. Phase 1 (database & auth) built, plus email verification (6-digit codes), username + login-by-email-or-username, password reset, and Google/GitHub social login (`identities` table, link-by-verified-email). Keep this date current whenever the stack or rules change._
+_Last updated: 2026-07-02 — Phase 3 (ingestion pipeline) built: public `POST /collect` (`routers/collect.py` → `services/ingest.py`) validates a `CollectEvent`, derives client IP (XFF→socket), filters bots, rate-limits per `(site_id, IP)` (non-raising, silent 202 drop), computes the cookieless daily-salted `visitor_hash` (`services/visitor.py`), enriches on the hot path (geo via `geoip2`/GeoLite2 fail-open in `services/geo.py`; device/browser/os + bot markers in `services/useragent.py`; `source` from UTM/referrer vs `Origin`), and `XADD`s an **IP-free** row to a bounded `stream:events`. The `workers/batch_writer.py` worker drains it via a Redis consumer group with `XAUTOCLAIM` reclaim, bulk-inserts into the ClickHouse `events` table (`db/clickhouse.py` + `--init`; adds `event_id` UUID), and `XACK`s after success. New deps: `geoip2`. New env: `GEOIP_DB_PATH`, `STREAM_MAXLEN`, `COLLECT_RATE_LIMIT`, `COLLECT_RATE_WINDOW`. 55 tests pass. Phase 2 (tracking script core) and Phase 1 (database & auth incl. email verification, username login, password reset, Google/GitHub social login) previously built. Keep this date current whenever the stack or rules change._
