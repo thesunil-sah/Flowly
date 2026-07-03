@@ -13,7 +13,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.tables import Account, Site
-from app.services import live
+from app.services import live, sites
 
 
 @pytest_asyncio.fixture
@@ -110,8 +110,8 @@ async def test_get_owned_site(session_factory: async_sessionmaker[AsyncSession])
         await s.commit()
 
     async with session_factory() as s:
-        assert await live.get_owned_site(s, "pub", acc_id) is not None
+        assert await sites.get_owned_site(s, "pub", acc_id) is not None
         # A different account does not own it (the #1 leak path).
-        assert await live.get_owned_site(s, "pub", uuid4()) is None
+        assert await sites.get_owned_site(s, "pub", uuid4()) is None
         # Unknown site.
-        assert await live.get_owned_site(s, "missing", acc_id) is None
+        assert await sites.get_owned_site(s, "missing", acc_id) is None

@@ -55,6 +55,53 @@ export type ResetTokenResponse = {
   reset_token: string;
 };
 
+// --- Stats (Phase 5) -------------------------------------------------------
+export type MetricDelta = {
+  value: number;
+  previous: number | null;
+  change_pct: number | null;
+};
+
+export type Overview = {
+  pageviews: MetricDelta;
+  visitors: MetricDelta;
+  sessions: MetricDelta;
+  bounce_rate: MetricDelta;
+  avg_duration: MetricDelta;
+};
+
+export type TimeseriesPoint = { bucket: string; pageviews: number; visitors: number };
+export type Timeseries = { interval: "hour" | "day"; points: TimeseriesPoint[] };
+
+export type BreakdownRow = { label: string; pageviews: number; visitors: number };
+export type Breakdown = { dimension: string; rows: BreakdownRow[] };
+
+export type UtmRow = {
+  utm_source: string;
+  utm_medium: string;
+  utm_campaign: string;
+  pageviews: number;
+  visitors: number;
+};
+export type Sources = { sources: BreakdownRow[]; utm: UtmRow[] };
+
+export type PageRow = { label: string; count: number; visitors: number };
+export type Pages = { kind: string; metric: "pageviews" | "sessions"; rows: PageRow[] };
+
+/** A [from, to) window as ISO-8601 UTC strings (the stats API is UTC-only). */
+export type StatsRange = { from: string; to: string };
+
+/** Build a `/stats/*` path with the shared site_id + range query params. */
+export function statsPath(
+  endpoint: string,
+  siteId: string,
+  range: StatsRange,
+  extra: Record<string, string> = {},
+): string {
+  const q = new URLSearchParams({ site_id: siteId, from: range.from, to: range.to, ...extra });
+  return `/stats/${endpoint}?${q.toString()}`;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {

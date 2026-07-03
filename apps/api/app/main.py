@@ -9,7 +9,7 @@ from app.core.exceptions import register_exception_handlers
 from app.db.clickhouse import close_clickhouse
 from app.db.postgres import dispose_engine
 from app.db.redis import close_redis
-from app.routers import auth, collect, health, live, oauth
+from app.routers import auth, collect, health, live, oauth, stats
 
 
 @asynccontextmanager
@@ -42,6 +42,8 @@ def create_app() -> FastAPI:
     # Authed dashboard surfaces (live counter/feed + site list), under the
     # locked CORS above.
     app.include_router(live.router)
+    # Authed, ownership-scoped historical reports (queries ClickHouse).
+    app.include_router(stats.router)
     # Public, open-CORS ingestion endpoint (its own ACAO:* header, set per
     # response — the global CORS middleware above stays locked to the dashboard).
     app.include_router(collect.router)

@@ -101,6 +101,21 @@ async def insert_events(client: AsyncClient, rows: list[dict[str, Any]]) -> None
     await client.insert("events", matrix, column_names=list(EVENT_COLUMNS))
 
 
+async def query_rows(
+    client: AsyncClient, sql: str, params: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Run a read query and return rows as column-keyed dicts.
+
+    Raw execution only — the SQL text and every business rule live in
+    `services/stats.py` (CLAUDE.md §3). `params` are passed as clickhouse-connect
+    **server-side** parameters (e.g. `{site_id:String}` in the SQL), never
+    string-formatted, so user input can't inject (CLAUDE.md §9).
+    """
+    result = await client.query(sql, parameters=params or {})
+    columns = result.column_names
+    return [dict(zip(columns, row)) for row in result.result_rows]
+
+
 async def close_clickhouse() -> None:
     """Close the ClickHouse client (call on app shutdown)."""
     global _client

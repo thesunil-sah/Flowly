@@ -136,3 +136,71 @@ class SiteOut(BaseModel):
     domain: str
 
     model_config = {"from_attributes": True}
+
+
+# --- Stats (Phase 5) ------------------------------------------------------
+class MetricDelta(BaseModel):
+    """One overview metric plus its prior-period comparison.
+
+    `previous`/`change_pct` are null when no comparison was requested or the
+    prior period was empty (a percentage against zero is undefined, not ∞).
+    """
+
+    value: float
+    previous: float | None = None
+    change_pct: float | None = None
+
+
+class OverviewOut(BaseModel):
+    pageviews: MetricDelta
+    visitors: MetricDelta
+    sessions: MetricDelta
+    bounce_rate: MetricDelta  # percent
+    avg_duration: MetricDelta  # seconds
+
+
+class TimeseriesPoint(BaseModel):
+    bucket: datetime  # UTC bucket start; localized at display
+    pageviews: int
+    visitors: int
+
+
+class TimeseriesOut(BaseModel):
+    interval: str  # "hour" | "day"
+    points: list[TimeseriesPoint]
+
+
+class BreakdownRow(BaseModel):
+    label: str
+    pageviews: int
+    visitors: int
+
+
+class BreakdownOut(BaseModel):
+    dimension: str
+    rows: list[BreakdownRow]
+
+
+class UtmRow(BaseModel):
+    utm_source: str
+    utm_medium: str
+    utm_campaign: str
+    pageviews: int
+    visitors: int
+
+
+class SourcesOut(BaseModel):
+    sources: list[BreakdownRow]
+    utm: list[UtmRow]
+
+
+class PageRow(BaseModel):
+    label: str
+    count: int  # pageviews for kind="top"; sessions for entry/exit
+    visitors: int
+
+
+class PagesOut(BaseModel):
+    kind: str  # "top" | "entry" | "exit"
+    metric: str  # what `count` means: "pageviews" | "sessions"
+    rows: list[PageRow]

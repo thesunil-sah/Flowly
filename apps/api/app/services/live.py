@@ -13,20 +13,16 @@ EXPIRE) so a busy-but-unwatched site can't grow without limit and a fully idle
 site self-cleans. The ingest hot path calls `mark_active` + `publish_event`
 best-effort; the WebSocket router consumes `subscribe_events` + `count_active`.
 
-All I/O is Redis-only except `get_owned_site`, the one Postgres lookup that
-enforces tenant isolation before a socket is allowed to stream a site.
+All I/O here is Redis-only; the Postgres ownership check that gates a socket
+lives in `services/sites.py` (shared with the stats API).
 """
 
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from uuid import UUID
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from redis.asyncio import Redis
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.redis import get_client
-from app.models.tables import Site
 
 # A visitor is "online" if seen within this window; the ZSET key outlives the
 # window by a buffer so a lone visitor's entry isn't dropped a hair early.
@@ -128,22 +124,3 @@ async def subscribe_events(
             await pubsub.unsubscribe(_channel(site_id))
         finally:
             await pubsub.aclose()
-
-
-async def get_owned_site(session: AsyncSession, site_id: str, account_id: UUID) -> Site | None:
-    """Return the site iff it exists AND belongs to this account (tenant scope).
-
-    Filtering by site_id alone is not enough (CLAUDE.md §9 — the #1 data-leak
-    path); the account_id predicate is what enforces ownership.
-    """
-    return await session.scalar(
-        select(Site).where(Site.site_id == site_id, Site.account_id == account_id)
-    )
-
-
-async def list_account_sites(session: AsyncSession, account_id: UUID) -> Sequence[Site]:
-    """All of an account's sites, oldest first (ownership-scoped)."""
-    result = await session.scalars(
-        select(Site).where(Site.account_id == account_id).order_by(Site.created_at)
-    )
-    return result.all()
