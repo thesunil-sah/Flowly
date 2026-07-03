@@ -47,6 +47,24 @@ _WS_POLICY_VIOLATION = 1008
 _HEARTBEAT_SECONDS = 10
 
 
+def _normalize_origin(value: str | None) -> str | None:
+    """Canonicalize an incoming `Origin` header for comparison, or None if absent.
+
+    A browser `Origin` is `scheme://host[:port]` with no path — case-insensitive,
+    no trailing slash — so we lowercase and strip. The allowed value it's compared
+    against (`settings.web_base_url`) is already canonicalized at config load, so
+    both sides meet in the same normal form.
+    """
+    if not value:
+        return None
+    return value.strip().lower().rstrip("/")
+
+
+# The only Origin allowed to open a live socket. Already canonical (config
+# normalizes WEB_BASE_URL), so it needs no further processing here.
+_ALLOWED_ORIGIN = settings.web_base_url
+
+
 @router.get("/sites")
 async def list_sites(account: CurrentUser, session: SessionDep) -> list[SiteOut]:
     """The authenticated account's sites (ownership-scoped)."""
@@ -60,7 +78,7 @@ async def _authorize(ws: WebSocket, site_id: str) -> str | None:
     Assumes `ws.accept()` has run so we can send a close code on rejection. A
     non-None return is the verified access token (needed for the expiry watchdog).
     """
-    if ws.headers.get("origin") != settings.web_base_url:
+    if _normalize_origin(ws.headers.get("origin")) != _ALLOWED_ORIGIN:
         await ws.close(code=_WS_POLICY_VIOLATION)
         return None
 

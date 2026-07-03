@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # apps/api/app/config.py -> parents[3] == repo root.
@@ -22,6 +23,21 @@ class Settings(BaseSettings):
     environment: str = "local"  # ENVIRONMENT
     api_base_url: str = "http://localhost:8000"  # API_BASE_URL
     web_base_url: str = "http://localhost:3000"  # WEB_BASE_URL
+
+    @field_validator("web_base_url")
+    @classmethod
+    def _canonical_origin(cls, value: str) -> str:
+        """Canonicalize WEB_BASE_URL to a browser-comparable Origin.
+
+        A browser `Origin` is `scheme://host[:port]` — lowercase, no trailing
+        slash. Both surfaces that gate on this value do an exact string compare
+        against such an Origin: the CORS middleware (`allow_origins`) and the
+        live-socket origin check. Normalizing once here means a stray trailing
+        slash or mixed case in the env var can't silently reject every request
+        and every WebSocket. Scheme is preserved (http vs https is a real
+        setting, not noise).
+        """
+        return value.strip().lower().rstrip("/")
 
     # --- Auth -------------------------------------------------------------
     # jwt_secret has a dev-only default so imports never crash locally.
