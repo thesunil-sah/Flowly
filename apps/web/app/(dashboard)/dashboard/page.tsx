@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useLogout, useMe } from "@/hooks/useAuth";
@@ -20,6 +21,9 @@ export default function DashboardPage() {
       <p className="text-gray-600">
         Plan: {data?.plan ?? "…"} · Status: {data?.status ?? "…"}
       </p>
+      <Link href="/live" className="rounded bg-black px-4 py-2 text-white">
+        View live traffic →
+      </Link>
       <button onClick={onLogout} className="rounded border border-gray-300 px-4 py-2">
         Log out
       </button>

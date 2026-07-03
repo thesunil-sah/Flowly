@@ -93,6 +93,17 @@ def decode_token(token: str, expected_type: TokenType) -> UUID:
         raise AuthError() from exc
 
 
+def access_token_expiry(token: str) -> datetime:
+    """Return an access token's expiry as a UTC datetime.
+
+    Used by the live WebSocket to close the socket when the token lapses (the
+    connection outlives the short access-token TTL otherwise). Assumes the token
+    was already verified by `decode_token`; re-decodes to read the `exp` claim.
+    """
+    payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    return datetime.fromtimestamp(int(payload["exp"]), tz=UTC)
+
+
 # --- Dependency -----------------------------------------------------------
 async def require_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],

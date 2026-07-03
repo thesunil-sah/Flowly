@@ -126,3 +126,13 @@ class AccountOut(BaseModel):
     trial_ends_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class SiteOut(BaseModel):
+    """Public site shape for the dashboard (site_id is public, not a secret)."""
+
+    id: UUID
+    site_id: str
+    domain: str
+
+    model_config = {"from_attributes": True}

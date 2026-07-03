@@ -10,6 +10,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# --- Redis (local persistence snapshots) ---
+*.rdb
+
 # --- Node / Next ---
 node_modules/
 dist/
