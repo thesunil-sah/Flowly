@@ -58,6 +58,17 @@ class ValidationError(AppError):
     message = "Invalid payload."
 
 
+class NotFoundError(AppError):
+    """A requested resource doesn't exist — or isn't visible to this account.
+
+    Ownership misses return 404 (not 403) so the API never reveals that a
+    site_id exists under a different account (CLAUDE.md §9).
+    """
+
+    status_code = 404
+    message = "Not found."
+
+
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 

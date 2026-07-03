@@ -23,7 +23,7 @@ from app.core.security import create_access_token
 from app.db import postgres
 from app.db.redis import get_redis
 from app.main import app
-from app.services import live, visitor
+from app.services import sites, visitor
 
 ORIGIN = settings.web_base_url
 CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36"
@@ -60,7 +60,7 @@ def _own(monkeypatch: pytest.MonkeyPatch, *, owned: bool) -> None:
     async def _get_owned_site(*_: object) -> object | None:
         return object() if owned else None
 
-    monkeypatch.setattr(live, "get_owned_site", _get_owned_site)
+    monkeypatch.setattr(sites, "get_owned_site", _get_owned_site)
 
 
 def test_bad_origin_is_rejected(fake_redis) -> None:

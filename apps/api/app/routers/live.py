@@ -30,7 +30,7 @@ from app.db import postgres
 from app.db.postgres import get_session
 from app.db.redis import get_client
 from app.models.schemas import SiteOut
-from app.services import live
+from app.services import live, sites
 
 logger = logging.getLogger("flowly.live")
 
@@ -68,8 +68,8 @@ _ALLOWED_ORIGIN = settings.web_base_url
 @router.get("/sites")
 async def list_sites(account: CurrentUser, session: SessionDep) -> list[SiteOut]:
     """The authenticated account's sites (ownership-scoped)."""
-    sites = await live.list_account_sites(session, account.id)
-    return [SiteOut.model_validate(s) for s in sites]
+    owned = await sites.list_account_sites(session, account.id)
+    return [SiteOut.model_validate(s) for s in owned]
 
 
 async def _authorize(ws: WebSocket, site_id: str) -> str | None:
@@ -92,7 +92,7 @@ async def _authorize(ws: WebSocket, site_id: str) -> str | None:
     # Ownership check on its own short-lived session — released before the
     # (Redis-only) streaming loop so no Postgres connection is pinned per socket.
     async with postgres.async_session_factory() as session:
-        site = await live.get_owned_site(session, site_id, account_id)
+        site = await sites.get_owned_site(session, site_id, account_id)
     if site is None:
         await ws.close(code=_WS_POLICY_VIOLATION)
         return None
