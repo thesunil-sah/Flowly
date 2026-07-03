@@ -124,6 +124,34 @@ def test_owned_site_streams_snapshot_then_event(
             assert "visitor_hash" not in event
 
 
+@pytest.mark.parametrize("variant", [ORIGIN + "/", ORIGIN.upper()])
+def test_origin_normalization_accepts_equivalent_forms(
+    fake_redis, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    # A trailing slash or mixed case on the Origin (or the configured
+    # web_base_url) must not reject an otherwise-valid socket. (Whitespace
+    # stripping is covered at the config layer, where the env var is parsed.)
+    _own(monkeypatch, owned=True)
+    with TestClient(app) as c:
+        with c.websocket_connect(_url(), headers={"origin": variant}) as ws:
+            assert ws.receive_json()["type"] == "snapshot"
+
+
+def test_scheme_mismatch_is_still_rejected(fake_redis, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Normalization must not paper over http-vs-https — that's a real config error.
+    _own(monkeypatch, owned=True)
+    other_scheme = (
+        "http://" + ORIGIN[len("https://") :]
+        if ORIGIN.startswith("https://")
+        else "https://" + ORIGIN[len("http://") :]
+    )
+    with TestClient(app) as c:
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with c.websocket_connect(_url(), headers={"origin": other_scheme}) as ws:
+                ws.receive_json()
+    assert exc.value.code == 1008
+
+
 def test_expired_token_closes_socket(fake_redis, monkeypatch: pytest.MonkeyPatch) -> None:
     _own(monkeypatch, owned=True)
     # Token already expired -> the watchdog closes the socket with 1008.
