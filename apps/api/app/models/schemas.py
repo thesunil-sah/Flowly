@@ -129,13 +129,42 @@ class AccountOut(BaseModel):
 
 
 class SiteOut(BaseModel):
-    """Public site shape for the dashboard (site_id is public, not a secret)."""
+    """Public site shape for the dashboard (site_id is public, not a secret).
+
+    `snippet` is the ready-to-paste install tag; it is NOT an ORM column, so this
+    model is always built via `services.sites.to_site_out` (never `model_validate`
+    on the ORM row, which has no `snippet` attribute).
+    """
 
     id: UUID
     site_id: str
     domain: str
+    snippet: str
 
-    model_config = {"from_attributes": True}
+
+class SiteCreate(BaseModel):
+    """Add-site request. `domain` is a cosmetic label, normalized to a bare host.
+
+    The validator normalizes but never rejects (mirrors the never-raise host
+    helper); an empty-after-normalize domain is rejected in `create_site`, so
+    there is a single error path.
+    """
+
+    domain: str = Field(min_length=1, max_length=255)
+
+    @field_validator("domain")
+    @classmethod
+    def _domain(cls, v: str) -> str:
+        # Imported here to avoid a schemas -> services import at module load.
+        from app.core.urls import normalize_host
+
+        return normalize_host(v)
+
+
+class SiteStatus(BaseModel):
+    """Install-verification result: has the site received its first event yet?"""
+
+    connected: bool
 
 
 # --- Stats (Phase 5) ------------------------------------------------------

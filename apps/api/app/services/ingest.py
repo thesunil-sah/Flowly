@@ -15,13 +15,13 @@ Contains no HTTP objects; the router passes primitives in and gets a value back.
 
 import logging
 from datetime import UTC, datetime
-from urllib.parse import urlparse
 from uuid import uuid4
 
 from redis.asyncio import Redis
 
 from app.config import settings
 from app.core.ratelimit import is_rate_limited
+from app.core.urls import normalize_host
 from app.models.events import CollectEvent
 from app.services import geo, live, useragent, visitor
 
@@ -29,19 +29,6 @@ logger = logging.getLogger("flowly.ingest")
 
 # The Redis Stream the batch writer drains. Shared with workers/batch_writer.py.
 STREAM_KEY = "stream:events"
-
-
-def _host(url: str) -> str:
-    """Lowercased hostname of a URL, `www.` stripped; "" if unparseable."""
-    if not url:
-        return ""
-    try:
-        netloc = urlparse(url).netloc.lower()
-    except ValueError:
-        return ""
-    # Drop any port and a leading www. for stable comparison/labelling.
-    host = netloc.split(":", 1)[0]
-    return host[4:] if host.startswith("www.") else host
 
 
 def derive_source(utm_source: str | None, referrer: str, origin: str | None) -> str:
@@ -52,10 +39,10 @@ def derive_source(utm_source: str | None, referrer: str, origin: str | None) -> 
     """
     if utm_source:
         return utm_source
-    ref_host = _host(referrer)
+    ref_host = normalize_host(referrer)
     if not ref_host:
         return "direct"
-    if ref_host == _host(origin or ""):
+    if ref_host == normalize_host(origin):
         return "direct"
     return ref_host
 

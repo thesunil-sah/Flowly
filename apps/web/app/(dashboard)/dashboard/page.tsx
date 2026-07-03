@@ -137,6 +137,9 @@ export default function DashboardPage() {
       <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="text-gray-600">No sites yet. Add one to start seeing your traffic.</p>
+        <Link href="/sites" className="rounded bg-black px-4 py-2 text-sm text-white">
+          Add a site
+        </Link>
       </main>
     );
   }
@@ -168,6 +171,9 @@ export default function DashboardPage() {
             active={PRESETS.find((p) => p.days === presetDays)!.key}
             onChange={(key) => setPresetDays(PRESETS.find((p) => p.key === key)!.days)}
           />
+          <Link href="/sites" className="text-sm text-gray-600 underline">
+            Add site
+          </Link>
           <Link href="/live" className="text-sm text-gray-600 underline">
             Live →
           </Link>
