@@ -13,6 +13,7 @@ buffering — is what makes that possible.
 Contains no HTTP objects; the router passes primitives in and gets a value back.
 """
 
+import logging
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -22,7 +23,9 @@ from redis.asyncio import Redis
 from app.config import settings
 from app.core.ratelimit import is_rate_limited
 from app.models.events import CollectEvent
-from app.services import geo, useragent, visitor
+from app.services import geo, live, useragent, visitor
+
+logger = logging.getLogger("flowly.ingest")
 
 # The Redis Stream the batch writer drains. Shared with workers/batch_writer.py.
 STREAM_KEY = "stream:events"
@@ -112,4 +115,29 @@ async def ingest_event(
         maxlen=settings.stream_maxlen,
         approximate=True,
     )
+
+    # Real-time fan-out (Phase 4). Best-effort: the event is already durably
+    # buffered above, so a live-path hiccup must never fail or slow /collect
+    # (CLAUDE.md §9). Presence update + publish go in one pipeline (one
+    # round-trip); the payload is IP-free and carries no visitor_hash.
+    try:
+        now = datetime.now(UTC).timestamp()
+        await live.record_and_publish(
+            redis,
+            event.site_id,
+            row["visitor_hash"],
+            {
+                "path": row["path"],
+                "source": row["source"],
+                "country": row["country"],
+                "region": row["region"],
+                "device": row["device"],
+                "browser": row["browser"],
+                "ts": row["ts"],
+            },
+            now,
+        )
+    except Exception:
+        logger.debug("live fan-out failed for %s", event.site_id, exc_info=True)
+
     return row["event_id"]

@@ -1,10 +1,13 @@
 """Ingest orchestration: enrichment, source derivation, and the stream row."""
 
+import asyncio
+
+import app.db.redis as redis_mod
 import fakeredis.aioredis
 import pytest_asyncio
 
 from app.models.events import CollectEvent
-from app.services import ingest, visitor
+from app.services import ingest, live, visitor
 from app.services.ingest import derive_source
 
 UA = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120.0 Safari/537.36"
@@ -85,3 +88,32 @@ async def test_over_rate_limit_is_dropped(redis, monkeypatch) -> None:
     # Third from the same (site, IP) is over the limit -> dropped silently.
     assert await ingest.ingest_event(_event(), "9.9.9.9", UA, None, redis) is None
     assert await redis.xlen(STREAM) == 2
+
+
+async def test_ingest_marks_active_and_publishes(redis, monkeypatch) -> None:
+    # subscribe_events reads the shared client; point it at the same fake so the
+    # publish from ingest_event reaches this subscriber.
+    monkeypatch.setattr(redis_mod, "_client", redis)
+    received: list[dict[str, object]] = []
+    ready = asyncio.Event()
+
+    async def _on_ready() -> None:
+        ready.set()
+
+    async def consume() -> None:
+        async for event in live.subscribe_events("demo", on_ready=_on_ready):
+            received.append(event)
+            break
+
+    task = asyncio.create_task(consume())
+    await asyncio.wait_for(ready.wait(), 2)
+    await ingest.ingest_event(_event(), "203.0.113.5", UA, "https://demo.example", redis)
+    await asyncio.wait_for(task, 2)
+
+    # Visitor recorded in the presence set...
+    assert await redis.zcard("active:demo") == 1
+    # ...and the forwarded payload is IP-free and carries no visitor_hash.
+    payload = received[0]
+    assert payload["path"] == "/p"
+    assert "visitor_hash" not in payload
+    assert "203.0.113.5" not in str(payload)

@@ -35,6 +35,22 @@ export type MessageResponse = {
   dev_code: string | null;
 };
 
+export type Site = {
+  id: string;
+  site_id: string;
+  domain: string;
+};
+
+/**
+ * WebSocket URL for the live stream of a site. A browser WebSocket can't send
+ * an Authorization header, so the short-lived access token rides in the query
+ * string (see the API's WS auth). Built here so no component assembles URLs.
+ */
+export function liveSocketUrl(siteId: string, token: string): string {
+  const wsBase = BASE.replace(/^http/, "ws");
+  return `${wsBase}/live/${encodeURIComponent(siteId)}?token=${encodeURIComponent(token)}`;
+}
+
 export type ResetTokenResponse = {
   reset_token: string;
 };

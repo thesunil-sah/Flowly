@@ -9,6 +9,7 @@ import pytest
 from app.config import settings
 from app.core.exceptions import AuthError
 from app.core.security import (
+    access_token_expiry,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -28,6 +29,13 @@ def test_access_token_roundtrip() -> None:
     account_id = uuid4()
     token = create_access_token(account_id)
     assert decode_token(token, "access") == account_id
+
+
+def test_access_token_expiry_matches_ttl() -> None:
+    token = create_access_token(uuid4())
+    remaining = (access_token_expiry(token) - datetime.now(UTC)).total_seconds()
+    # Expiry is ~access_token_ttl from now (allow a small clock delta).
+    assert settings.access_token_ttl - 5 < remaining <= settings.access_token_ttl
 
 
 def test_refresh_token_roundtrip() -> None:
