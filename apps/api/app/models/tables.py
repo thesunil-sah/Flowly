@@ -74,6 +74,13 @@ class Site(Base):
 
     account: Mapped["Account"] = relationship(back_populates="sites")
 
+    # A domain is a per-account label; the same host under one account is a
+    # duplicate. This constraint is the real arbiter behind create_site's
+    # pre-check (which alone is not race-safe against concurrent adds).
+    __table_args__ = (
+        UniqueConstraint("account_id", "domain", name="uq_site_account_domain"),
+    )
+
 
 class Subscription(Base):
     __tablename__ = "subscriptions"

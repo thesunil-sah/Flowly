@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     # Path to a MaxMind GeoLite2-City .mmdb file. Blank -> geo enrichment
     # fails open (country/region left empty); ingestion never breaks.
     geoip_db_path: str = ""  # GEOIP_DB_PATH
+    # Public URL the tracking snippet loads `script.js` from. Baked into the
+    # install snippet shown at onboarding (server owns the URL; the frontend
+    # never needs a copy). Prod must point this at the real CDN/host.
+    tracker_script_url: str = "http://localhost:8000/script.js"  # TRACKER_SCRIPT_URL
     # Approximate cap for the Redis ingest stream (XADD MAXLEN ~). Sized well
     # above the batch writer's drain rate so healthy operation never trims.
     stream_maxlen: int = 1_000_000  # STREAM_MAXLEN

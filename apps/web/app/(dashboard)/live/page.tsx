@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { CurrentPages, LiveCounter, LiveFeed } from "@/components/live";
@@ -33,6 +34,9 @@ export default function LivePage() {
       <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
         <h1 className="text-2xl font-semibold">Live traffic</h1>
         <p className="text-gray-600">No sites yet. Add one to start seeing live visitors.</p>
+        <Link href="/sites" className="rounded bg-black px-4 py-2 text-sm text-white">
+          Add a site
+        </Link>
       </main>
     );
   }

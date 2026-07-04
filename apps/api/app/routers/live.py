@@ -18,25 +18,19 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.config import settings
 from app.core.exceptions import AppError
-from app.core.security import CurrentUser, access_token_expiry, decode_token
+from app.core.security import access_token_expiry, decode_token
 from app.db import postgres
-from app.db.postgres import get_session
 from app.db.redis import get_client
-from app.models.schemas import SiteOut
 from app.services import live, sites
 
 logger = logging.getLogger("flowly.live")
 
 router = APIRouter(tags=["live"])
-
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 # Message sender: serializes writes so concurrent tasks can't interleave frames.
 Sender = Callable[[dict[str, object]], Awaitable[None]]
@@ -63,13 +57,6 @@ def _normalize_origin(value: str | None) -> str | None:
 # The only Origin allowed to open a live socket. Already canonical (config
 # normalizes WEB_BASE_URL), so it needs no further processing here.
 _ALLOWED_ORIGIN = settings.web_base_url
-
-
-@router.get("/sites")
-async def list_sites(account: CurrentUser, session: SessionDep) -> list[SiteOut]:
-    """The authenticated account's sites (ownership-scoped)."""
-    owned = await sites.list_account_sites(session, account.id)
-    return [SiteOut.model_validate(s) for s in owned]
 
 
 async def _authorize(ws: WebSocket, site_id: str) -> str | None:

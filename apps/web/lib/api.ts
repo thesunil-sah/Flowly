@@ -39,7 +39,10 @@ export type Site = {
   id: string;
   site_id: string;
   domain: string;
+  snippet: string; // ready-to-paste install tag, built server-side
 };
+
+export type SiteStatus = { connected: boolean };
 
 /**
  * WebSocket URL for the live stream of a site. A browser WebSocket can't send

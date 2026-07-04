@@ -23,7 +23,7 @@ from redis.asyncio import Redis
 from redis.exceptions import ResponseError
 
 from app.db.clickhouse import close_clickhouse, get_clickhouse, init_events_table, insert_events
-from app.db.redis import close_redis, get_client
+from app.db.redis import make_client
 from app.services.ingest import STREAM_KEY
 
 logger = logging.getLogger("flowly.batch_writer")
@@ -32,6 +32,11 @@ GROUP = "batch_writer"
 CONSUMER = "worker-1"
 BATCH_COUNT = 500
 BLOCK_MS = 5000
+# The client's socket read timeout must exceed BLOCK_MS, or an idle blocking
+# XREADGROUP (which holds the socket for the whole window) trips a spurious
+# TimeoutError every cycle. The headroom lets the server's empty reply land
+# first while a genuinely dead connection still times out and is logged.
+_READ_TIMEOUT_S = BLOCK_MS / 1000 + 5
 # Only reclaim entries idle longer than this (i.e. a crashed/stuck consumer).
 RECLAIM_MIN_IDLE_MS = 60_000
 # Sweep the pending list every N idle/loop iterations.
@@ -136,7 +141,9 @@ async def drain_once(redis: Redis, ch: AsyncClient) -> int:
 
 
 async def run() -> None:
-    redis = get_client()
+    # A dedicated client (not the shared get_client) so its read timeout can
+    # exceed the blocking-read window without changing the API's fail-fast client.
+    redis = make_client(socket_timeout=_READ_TIMEOUT_S)
     ch = await get_clickhouse()
     await init_events_table(ch)
     await ensure_group(redis)
@@ -156,7 +163,7 @@ async def run() -> None:
             if iteration % RECLAIM_EVERY == 0:
                 await reclaim_pending(redis, ch)
     finally:
-        await close_redis()
+        await redis.aclose()
         await close_clickhouse()
         logger.info("batch_writer stopped")
 
