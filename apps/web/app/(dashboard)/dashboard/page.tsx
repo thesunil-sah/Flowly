@@ -172,7 +172,7 @@ export default function DashboardPage() {
             onChange={(key) => setPresetDays(PRESETS.find((p) => p.key === key)!.days)}
           />
           <Link href="/sites" className="text-sm text-gray-600 underline">
-            Add site
+            Sites
           </Link>
           <Link href="/live" className="text-sm text-gray-600 underline">
             Live →

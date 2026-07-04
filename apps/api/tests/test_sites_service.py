@@ -86,6 +86,30 @@ async def test_same_domain_different_account_allowed(
     assert site2.domain == "example.com"
 
 
+async def test_duplicate_domain_race_caught_by_db_constraint(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pre-check SELECT is not race-safe; the DB constraint is the arbiter.
+
+    Simulate a lost race by forcing every duplicate/collision SELECT to miss
+    (return None), so create_site reaches the INSERT with a committed duplicate
+    already present. The unique constraint must fire and be surfaced as a clean
+    ConflictError, never a bare IntegrityError / 500.
+    """
+    account_id = await _new_account(session_factory, "f@example.com")
+    async with session_factory() as s:
+        await sites.create_site(s, account_id, "example.com")  # committed duplicate
+
+    async def _always_miss(*_args: Any, **_kwargs: Any) -> None:
+        return None  # pre-check + site_id-collision checks both see "nothing there"
+
+    monkeypatch.setattr(AsyncSession, "scalar", _always_miss)
+    async with session_factory() as s:
+        with pytest.raises(ConflictError):
+            await sites.create_site(s, account_id, "example.com")
+
+
 async def test_build_snippet_carries_site_id_and_url() -> None:
     snippet = sites.build_snippet("abc123")
     assert 'data-site="abc123"' in snippet

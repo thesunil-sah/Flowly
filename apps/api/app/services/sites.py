@@ -17,6 +17,7 @@ from uuid import UUID
 from clickhouse_connect.driver import AsyncClient
 from redis.asyncio import Redis
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -103,7 +104,14 @@ async def create_site(session: AsyncSession, account_id: UUID, domain: str) -> S
 
     site = Site(account_id=account_id, site_id=site_id, domain=host)
     session.add(site)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        # Lost the race with a concurrent add that passed the pre-check too; the
+        # (account_id, domain) unique constraint is the real arbiter. Surface a
+        # clean 409 instead of letting the IntegrityError bubble up as a 500.
+        await session.rollback()
+        raise ConflictError("You've already added this site.") from exc
     await session.refresh(site)
     return site
 

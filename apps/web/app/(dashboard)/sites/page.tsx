@@ -5,10 +5,10 @@ import { useState, type FormEvent } from "react";
 
 import { ErrorText, Field, Submit } from "@/components/form";
 import { InstallGuide, StatusPill } from "@/components/install";
-import { useCreateSite, useSiteStatus } from "@/hooks/useSites";
+import { useCreateSite, useSites, useSiteStatus } from "@/hooks/useSites";
 import type { Site } from "@/lib/api";
 
-function InstallStep({ site }: { site: Site }) {
+function InstallStep({ site, onBack }: { site: Site; onBack: () => void }) {
   // Freeze the poll start so the ~3-min auto-poll cap is measured from arrival.
   const [startedAt] = useState(() => Date.now());
   const status = useSiteStatus(site.site_id, startedAt);
@@ -16,10 +16,14 @@ function InstallStep({ site }: { site: Site }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <button type="button" onClick={onBack} className="self-start text-sm text-gray-600 underline">
+        ← All sites
+      </button>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{site.domain}</h1>
-          <p className="text-sm text-gray-600">Site added. Now install the snippet.</p>
+          <p className="text-sm text-gray-600">Install the snippet to start tracking.</p>
         </div>
         <StatusPill connected={connected} />
       </div>
@@ -43,6 +47,29 @@ function InstallStep({ site }: { site: Site }) {
           {status.isFetching ? "Checking…" : "Still waiting? Check again"}
         </button>
       )}
+    </div>
+  );
+}
+
+function SiteList({ sites, onOpen }: { sites: Site[]; onOpen: (site: Site) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-sm font-semibold text-gray-600">Your sites</h2>
+      {sites.map((s) => (
+        <div
+          key={s.id}
+          className="flex items-center justify-between rounded border border-gray-300 p-4"
+        >
+          <span className="font-medium">{s.domain}</span>
+          <button
+            type="button"
+            onClick={() => onOpen(s)}
+            className="text-sm text-gray-600 underline"
+          >
+            Open
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -83,11 +110,24 @@ function AddStep({ onCreated }: { onCreated: (site: Site) => void }) {
 }
 
 export default function SitesPage() {
-  const [created, setCreated] = useState<Site | null>(null);
+  const { data: sites, isLoading } = useSites();
+  // The site whose install/status screen is open; null shows the list + add form.
+  const [viewing, setViewing] = useState<Site | null>(null);
+
+  if (isLoading) {
+    return <main className="flex flex-1 items-center justify-center p-6">Loading…</main>;
+  }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 p-6">
-      {created ? <InstallStep site={created} /> : <AddStep onCreated={setCreated} />}
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
+      {viewing ? (
+        <InstallStep site={viewing} onBack={() => setViewing(null)} />
+      ) : (
+        <>
+          {sites && sites.length > 0 ? <SiteList sites={sites} onOpen={setViewing} /> : null}
+          <AddStep onCreated={setViewing} />
+        </>
+      )}
     </main>
   );
 }
