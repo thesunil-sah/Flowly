@@ -116,6 +116,17 @@ async def query_rows(
     return [dict(zip(columns, row)) for row in result.result_rows]
 
 
+async def run_command(client: AsyncClient, sql: str, params: dict[str, Any] | None = None) -> None:
+    """Execute a DDL/mutation command (no rows returned). Raw execution only.
+
+    Like `query_rows`, `params` are bound server-side (`{site_id:String}`), never
+    string-formatted — the retention job's `ALTER TABLE ... DELETE` predicate is
+    parameterized this way (CLAUDE.md §9). The SQL text lives in the calling
+    service (§3).
+    """
+    await client.command(sql, parameters=params or {})
+
+
 async def close_clickhouse() -> None:
     """Close the ClickHouse client (call on app shutdown)."""
     global _client

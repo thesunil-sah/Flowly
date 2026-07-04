@@ -11,13 +11,15 @@ the filter isn't detectable.
 """
 
 import json
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import FileResponse
 from pydantic import ValidationError as PydanticValidationError
 from redis.asyncio import Redis
 
-from app.core.exceptions import ValidationError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.db.redis import get_redis
 from app.models.events import CollectEvent
 from app.services import ingest as ingest_service
@@ -29,6 +31,10 @@ RedisDep = Annotated[Redis, Depends(get_redis)]
 # Open CORS for the public tracker (dashboard CORS stays locked in main.py).
 _CORS_HEADERS = {"Access-Control-Allow-Origin": "*"}
 
+# The built, minified tracking script (apps/tracker/dist/script.js). This file
+# lives at parents[4] == repo root from apps/api/app/routers/collect.py.
+_TRACKER_SCRIPT = Path(__file__).resolve().parents[4] / "apps" / "tracker" / "dist" / "script.js"
+
 
 def _client_ip(request: Request) -> str:
     """Real client IP: first X-Forwarded-For hop (behind a CDN) else the socket.
@@ -39,6 +45,24 @@ def _client_ip(request: Request) -> str:
     if xff:
         return xff.split(",", 1)[0].strip()
     return request.client.host if request.client else ""
+
+
+@router.get("/script.js")
+async def tracker_script() -> FileResponse:
+    """Serve the built tracking script (public, open CORS, cacheable).
+
+    Dev/self-host convenience so the default `TRACKER_SCRIPT_URL`
+    (`{API}/script.js`) resolves; in production this is fronted by a CDN.
+    """
+    if not _TRACKER_SCRIPT.is_file():
+        # Tracker not built yet (`pnpm --filter tracker build`). 404 beats a
+        # bare 500 from FileResponse on a missing path.
+        raise NotFoundError("Tracking script has not been built.")
+    return FileResponse(
+        _TRACKER_SCRIPT,
+        media_type="application/javascript",
+        headers={**_CORS_HEADERS, "Cache-Control": "public, max-age=300"},
+    )
 
 
 @router.options("/collect")

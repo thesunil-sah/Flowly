@@ -9,6 +9,7 @@ This module is the single home for that check so live/stats/onboarding share
 one canonical query rather than each re-deriving it.
 """
 
+import logging
 import secrets
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -26,7 +27,9 @@ from app.core.urls import normalize_host
 from app.db.clickhouse import query_rows
 from app.models.schemas import SiteOut
 from app.models.tables import Site
-from app.services import live
+from app.services import billing, live
+
+logger = logging.getLogger("flowly.sites")
 
 # site_id bytes -> 16 hex chars. Public, non-secret; hex keeps it URL/HTML/Redis
 # safe (no -_/+) and well within the sites.site_id String(64) column.
@@ -55,6 +58,16 @@ async def list_account_sites(session: AsyncSession, account_id: UUID) -> Sequenc
     return result.all()
 
 
+async def list_all_sites(session: AsyncSession) -> Sequence[Site]:
+    """Every site across all accounts (for cross-account maintenance jobs).
+
+    Not ownership-scoped by design — its only callers are background workers
+    (e.g. retention) that operate over the whole dataset, never a request path.
+    """
+    result = await session.scalars(select(Site).order_by(Site.created_at))
+    return result.all()
+
+
 def _generate_site_id() -> str:
     """A fresh public site_id (16 hex chars). Not a secret, never used for auth."""
     return secrets.token_hex(_SITE_ID_BYTES)
@@ -77,13 +90,18 @@ def to_site_out(site: Site) -> SiteOut:
     )
 
 
-async def create_site(session: AsyncSession, account_id: UUID, domain: str) -> Site:
+async def create_site(session: AsyncSession, redis: Redis, account_id: UUID, domain: str) -> Site:
     """Register a new site for an account: normalize domain, mint a site_id, store.
 
     `domain` is a cosmetic dashboard label (events are scoped by site_id, not
     origin). It's normalized to a bare host; an empty result is rejected. A
     duplicate domain **for the same account** is a ConflictError — two different
     accounts may track the same domain, so the check is account-scoped.
+
+    On success the immutable `site:{site_id} -> account_id` map is written to
+    Redis so the ingest hot path can meter usage without a Postgres lookup
+    (Phase 7). The write is best-effort — if it's lost, that site simply isn't
+    metered until re-saved (usage under-counts; it never blocks ingestion).
     """
     host = normalize_host(domain)
     if not host:
@@ -113,6 +131,15 @@ async def create_site(session: AsyncSession, account_id: UUID, domain: str) -> S
         await session.rollback()
         raise ConflictError("You've already added this site.") from exc
     await session.refresh(site)
+
+    # Warm the site->account map for the ingest hot path (Phase 7). Best-effort:
+    # a Redis hiccup must not fail site creation; a lost write only means this
+    # site's usage isn't metered until it's re-saved.
+    try:
+        await billing.cache_site_account(redis, site.site_id, account_id)
+    except Exception:
+        logger.debug("site->account cache write failed for %s", site.site_id, exc_info=True)
+
     return site
 
 

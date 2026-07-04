@@ -17,6 +17,7 @@ dependencies = [
     "pydantic[email]>=2.7",
     "httpx>=0.28.1",
     "geoip2>=5.2.0",
+    "stripe>=15.3.0",
 ]
 
 [dependency-groups]

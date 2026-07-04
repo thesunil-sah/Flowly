@@ -7,7 +7,7 @@ All timestamps are timezone-aware UTC (CLAUDE.md §4).
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -37,6 +37,11 @@ class Account(Base):
     plan: Mapped[str] = mapped_column(String(32), default="pro")
     status: Mapped[str] = mapped_column(String(32), default="trialing")
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Opt-out flag for non-transactional email (weekly digest, onboarding
+    # sequence). Toggled true by the signed unsubscribe link; transactional mail
+    # (verify/reset) ignores it. Never null so the marketing-send gate is a clean
+    # boolean check (Phase 8).
+    email_opt_out: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     sites: Mapped[list["Site"]] = relationship(back_populates="account")
@@ -77,21 +82,82 @@ class Site(Base):
     # A domain is a per-account label; the same host under one account is a
     # duplicate. This constraint is the real arbiter behind create_site's
     # pre-check (which alone is not race-safe against concurrent adds).
-    __table_args__ = (
-        UniqueConstraint("account_id", "domain", name="uq_site_account_domain"),
-    )
+    __table_args__ = (UniqueConstraint("account_id", "domain", name="uq_site_account_domain"),)
+
+
+class ShareToken(Base):
+    """A public, read-only share link for one site's dashboard (Phase 8).
+
+    The token is an unguessable secret (unlike the public `site_id`) — anyone
+    holding the link can view that site's stats, so it is treated like a bearer
+    credential: minted with `secrets.token_urlsafe`, and revocable. Revocation is
+    soft (`revoked_at`) so "rotate" = mint a new active row + stamp the old one;
+    the public resolver only accepts rows with `revoked_at IS NULL`.
+    """
+
+    __tablename__ = "share_tokens"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # FK to the internal site pk (not the public site_id) so a deleted site takes
+    # its share links with it; the resolver reads `site.site_id` for stats.
+    site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    site: Mapped["Site"] = relationship()
+
+
+class OnboardingEmail(Base):
+    """Ledger of onboarding-sequence steps already sent to an account (Phase 8).
+
+    One row per (account, step) is the idempotency key: the hourly worker only
+    sends a step whose row is absent, then inserts it — so a re-run (or overlap)
+    can never send the same step twice. Mirrors `ProcessedStripeEvent`.
+    """
+
+    __tablename__ = "onboarding_emails"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id"), index=True)
+    step: Mapped[str] = mapped_column(String(32))
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (UniqueConstraint("account_id", "step", name="uq_onboarding_account_step"),)
 
 
 class Subscription(Base):
     __tablename__ = "subscriptions"
 
-    # Baseline schema only — no billing logic touches this until Phase 7.
+    # The durable mirror of Stripe entitlement. Written ONLY by verified webhook
+    # handlers (services/billing.py) — never from a Checkout redirect (§9/§10).
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id"), index=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), default=None)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), default=None)
+    stripe_price_id: Mapped[str | None] = mapped_column(String(255), default=None)
     status: Mapped[str | None] = mapped_column(String(32), default=None)
     plan: Mapped[str | None] = mapped_column(String(32), default=None)
+    # True once the customer cancels but keeps access until current_period_end;
+    # drives the "cancels on {date}" UI. Non-null with a default so the column
+    # is always a clean boolean.
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
     current_period_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
+
+
+class ProcessedStripeEvent(Base):
+    """Webhook idempotency ledger: one row per handled Stripe event id.
+
+    The webhook handler inserts the event id in the SAME transaction that applies
+    the event's effect, so a redelivered event (Stripe delivers at-least-once)
+    is a primary-key collision → skipped. Exactly-once processing (§10).
+    """
+
+    __tablename__ = "processed_stripe_events"
+
+    # Stripe's `evt_...` id is the natural primary key.
+    event_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    type: Mapped[str] = mapped_column(String(64))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

@@ -23,7 +23,7 @@ from app.config import settings
 from app.core.ratelimit import is_rate_limited
 from app.core.urls import normalize_host
 from app.models.events import CollectEvent
-from app.services import geo, live, useragent, visitor
+from app.services import billing, geo, live, useragent, visitor
 
 logger = logging.getLogger("flowly.ingest")
 
@@ -126,5 +126,13 @@ async def ingest_event(
         )
     except Exception:
         logger.debug("live fan-out failed for %s", event.site_id, exc_info=True)
+
+    # Usage metering (Phase 7). Best-effort, after the durable buffer: only
+    # counted events (bots/over-rate-limit already returned above) reach here.
+    # Redis-only so /collect stays off Postgres; a hiccup must never fail it.
+    try:
+        await billing.meter_pageview(redis, event.site_id, datetime.now(UTC))
+    except Exception:
+        logger.debug("usage metering failed for %s", event.site_id, exc_info=True)
 
     return row["event_id"]

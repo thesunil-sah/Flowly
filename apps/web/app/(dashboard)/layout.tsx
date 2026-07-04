@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
+import { UsageBanner } from "@/components/UsageBanner";
 import { useMe } from "@/hooks/useAuth";
 
 // Client-side guard (plan D1): validate the session via /auth/me. The access
@@ -24,5 +25,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   if (isError || !data) {
     return null; // redirecting
   }
-  return <>{children}</>;
+  return (
+    <>
+      <UsageBanner />
+      {children}
+    </>
+  );
 }

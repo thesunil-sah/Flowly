@@ -36,6 +36,11 @@ class MockClickHouse:
         return _Result(self._rows)
 
 
+def _redis() -> fakeredis.aioredis.FakeRedis:
+    """A throwaway fake Redis for create_site's site->account map write."""
+    return fakeredis.aioredis.FakeRedis(decode_responses=True)
+
+
 async def _new_account(session_factory: async_sessionmaker[AsyncSession], email: str) -> UUID:
     async with session_factory() as s:
         acc = Account(email=email, username=email.split("@")[0])
@@ -49,7 +54,7 @@ async def test_create_site_normalizes_domain_and_generates_id(
 ) -> None:
     account_id = await _new_account(session_factory, "a@example.com")
     async with session_factory() as s:
-        site = await sites.create_site(s, account_id, "HTTPS://WWW.Example.com/pricing")
+        site = await sites.create_site(s, _redis(), account_id, "HTTPS://WWW.Example.com/pricing")
     assert site.domain == "example.com"  # scheme/www/path stripped, lowercased
     assert len(site.site_id) == 16 and all(c in "0123456789abcdef" for c in site.site_id)
 
@@ -60,7 +65,7 @@ async def test_create_site_rejects_empty_domain(
     account_id = await _new_account(session_factory, "b@example.com")
     async with session_factory() as s:
         with pytest.raises(ValidationError):
-            await sites.create_site(s, account_id, "   ")  # normalizes to ""
+            await sites.create_site(s, _redis(), account_id, "   ")  # normalizes to ""
 
 
 async def test_duplicate_domain_same_account_conflicts(
@@ -68,10 +73,12 @@ async def test_duplicate_domain_same_account_conflicts(
 ) -> None:
     account_id = await _new_account(session_factory, "c@example.com")
     async with session_factory() as s:
-        await sites.create_site(s, account_id, "example.com")
+        await sites.create_site(s, _redis(), account_id, "example.com")
     async with session_factory() as s:
         with pytest.raises(ConflictError):
-            await sites.create_site(s, account_id, "www.example.com")  # same host normalized
+            await sites.create_site(
+                s, _redis(), account_id, "www.example.com"
+            )  # same host normalized
 
 
 async def test_same_domain_different_account_allowed(
@@ -80,9 +87,9 @@ async def test_same_domain_different_account_allowed(
     a1 = await _new_account(session_factory, "d@example.com")
     a2 = await _new_account(session_factory, "e@example.com")
     async with session_factory() as s:
-        await sites.create_site(s, a1, "example.com")
+        await sites.create_site(s, _redis(), a1, "example.com")
     async with session_factory() as s:
-        site2 = await sites.create_site(s, a2, "example.com")  # different tenant → fine
+        site2 = await sites.create_site(s, _redis(), a2, "example.com")  # different tenant → fine
     assert site2.domain == "example.com"
 
 
@@ -99,7 +106,7 @@ async def test_duplicate_domain_race_caught_by_db_constraint(
     """
     account_id = await _new_account(session_factory, "f@example.com")
     async with session_factory() as s:
-        await sites.create_site(s, account_id, "example.com")  # committed duplicate
+        await sites.create_site(s, _redis(), account_id, "example.com")  # committed duplicate
 
     async def _always_miss(*_args: Any, **_kwargs: Any) -> None:
         return None  # pre-check + site_id-collision checks both see "nothing there"
@@ -107,7 +114,7 @@ async def test_duplicate_domain_race_caught_by_db_constraint(
     monkeypatch.setattr(AsyncSession, "scalar", _always_miss)
     async with session_factory() as s:
         with pytest.raises(ConflictError):
-            await sites.create_site(s, account_id, "example.com")
+            await sites.create_site(s, _redis(), account_id, "example.com")
 
 
 async def test_build_snippet_carries_site_id_and_url() -> None:
