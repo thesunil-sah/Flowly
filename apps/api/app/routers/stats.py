@@ -7,27 +7,24 @@ query runs. Filtering ClickHouse by `site_id` alone is not ownership — it's th
 `owned_site` + `stats_range`, call `services/stats.py`, return the model.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import NotFoundError
 from app.core.security import CurrentUser
+from app.core.timerange import stats_range
 from app.db.clickhouse import ClickHouseDep
 from app.db.postgres import get_session
 from app.models.schemas import BreakdownOut, OverviewOut, PagesOut, SourcesOut, TimeseriesOut
-from app.services import sites, stats
+from app.services import export, sites, stats
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-
-# Default lookback when no range is given, and the widest queryable span (a
-# query-cost guard — per-plan retention enforcement is Phase 9).
-DEFAULT_RANGE_DAYS = 7
-MAX_RANGE_DAYS = 372
 
 
 async def owned_site(
@@ -40,28 +37,6 @@ async def owned_site(
     if site is None:
         raise NotFoundError("Site not found.")
     return site.site_id
-
-
-def stats_range(
-    from_: Annotated[datetime | None, Query(alias="from")] = None,
-    to: Annotated[datetime | None, Query(alias="to")] = None,
-) -> tuple[datetime, datetime]:
-    """Resolve + validate the [from, to) window; default to the last 7 days.
-
-    Naive inputs are treated as UTC. `to` is exclusive. Rejects an inverted or
-    over-wide range with 422 (all storage/query time is UTC, §4).
-    """
-
-    def _utc(dt: datetime) -> datetime:
-        return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
-
-    to_v = _utc(to) if to else datetime.now(UTC)
-    from_v = _utc(from_) if from_ else to_v - timedelta(days=DEFAULT_RANGE_DAYS)
-    if from_v >= to_v:
-        raise ValidationError("`from` must be before `to`.")
-    if to_v - from_v > timedelta(days=MAX_RANGE_DAYS):
-        raise ValidationError(f"Range exceeds the {MAX_RANGE_DAYS}-day maximum.")
-    return from_v, to_v
 
 
 SiteDep = Annotated[str, Depends(owned_site)]
@@ -114,3 +89,24 @@ async def get_pages(
     limit: LimitDep = 10,
 ) -> PagesOut:
     return await stats.pages(client, site_id, *date_range, kind, limit)
+
+
+@router.get("/export")
+async def get_export(
+    site_id: SiteDep,
+    date_range: RangeDep,
+    client: ClickHouseDep,
+    dataset: Literal["overview", "timeseries", "sources", "audience", "pages"] = "overview",
+    dimension: Literal["country", "device", "browser", "os"] = "country",
+    kind: Literal["top", "entry", "exit"] = "top",
+    limit: LimitDep = 100,
+) -> Response:
+    """Download an aggregated report as CSV (ownership-checked; no PII, §9)."""
+    filename, content = await export.build_csv(
+        client, site_id, *date_range, dataset, dimension, kind, limit
+    )
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

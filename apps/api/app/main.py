@@ -9,7 +9,7 @@ from app.core.exceptions import register_exception_handlers
 from app.db.clickhouse import close_clickhouse
 from app.db.postgres import dispose_engine
 from app.db.redis import close_redis
-from app.routers import auth, collect, health, live, oauth, sites, stats
+from app.routers import auth, billing, collect, email, health, live, oauth, public, sites, stats
 
 
 @asynccontextmanager
@@ -45,6 +45,13 @@ def create_app() -> FastAPI:
     app.include_router(sites.router)
     # Authed, ownership-scoped historical reports (queries ClickHouse).
     app.include_router(stats.router)
+    # Public, token-scoped read-only shared dashboards (§8) — no auth, one site.
+    app.include_router(public.router)
+    # Billing: authed checkout/portal/usage under the locked CORS + a public,
+    # signature-verified Stripe webhook (server-to-server, no CORS concern).
+    app.include_router(billing.router)
+    # Public one-click unsubscribe (signed-token authed) for growth email (§8).
+    app.include_router(email.router)
     # Public, open-CORS ingestion endpoint (its own ACAO:* header, set per
     # response — the global CORS middleware above stays locked to the dashboard).
     app.include_router(collect.router)

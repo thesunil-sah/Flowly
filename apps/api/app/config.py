@@ -90,5 +90,33 @@ class Settings(BaseSettings):
     collect_rate_limit: int = 600  # COLLECT_RATE_LIMIT (events per window)
     collect_rate_window: int = 60  # COLLECT_RATE_WINDOW (seconds)
 
+    # --- Stripe / Billing (Phase 7) ---------------------------------------
+    # Empty defaults so imports never crash locally; billing is inert until a
+    # real test/live key is set. Prices are Stripe-dashboard-created product
+    # prices referenced by id (we never create products from code).
+    stripe_secret_key: str = ""  # STRIPE_SECRET_KEY
+    stripe_webhook_secret: str = ""  # STRIPE_WEBHOOK_SECRET
+    stripe_price_pro: str = ""  # STRIPE_PRICE_PRO (monthly)
+    stripe_price_business: str = ""  # STRIPE_PRICE_BUSINESS (monthly)
+    stripe_price_pro_annual: str = ""  # STRIPE_PRICE_PRO_ANNUAL
+    stripe_price_business_annual: str = ""  # STRIPE_PRICE_BUSINESS_ANNUAL
+
+
+# Monthly pageview quota per plan tier. `free` is both the entry tier and the
+# lapsed-trial / canceled-subscription fallback (see billing.effective_plan).
+# Placeholder values — tune to real pricing before launch.
+PLAN_QUOTAS: dict[str, int] = {"free": 10_000, "pro": 100_000, "business": 1_000_000}
+
+# Absolute drop ceiling as a multiple of the plan quota: a runaway/abuse guard,
+# NOT a paying-customer experience (a real account never reaches it). Below it
+# the soft cap keeps ingesting (§9: never drop a paying customer's data).
+HARD_CEILING_MULTIPLE: int = 3
+
+# Per-plan event retention window in days (§9 — "30 days free, 1 year Pro"). The
+# retention worker deletes ClickHouse events older than the owner's window. An
+# unknown plan falls back to the free (shortest) window — never keep more than
+# entitled by mistake.
+RETENTION_DAYS: dict[str, int] = {"free": 30, "pro": 365, "business": 730}
+
 
 settings = Settings()

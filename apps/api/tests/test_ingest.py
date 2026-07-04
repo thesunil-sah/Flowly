@@ -90,6 +90,32 @@ async def test_over_rate_limit_is_dropped(redis, monkeypatch) -> None:
     assert await redis.xlen(STREAM) == 2
 
 
+async def test_ingest_meters_usage_for_mapped_site(redis) -> None:
+    from datetime import UTC, datetime
+    from uuid import UUID
+
+    from app.services import billing
+
+    acc_id = UUID(int=7)
+    await billing.cache_site_account(redis, "demo", acc_id)  # warm the site->account map
+    await ingest.ingest_event(_event(), "9.9.9.9", UA, None, redis)
+    await ingest.ingest_event(_event(), "9.9.9.9", UA, None, redis)
+    assert await billing.get_usage(redis, acc_id, datetime.now(UTC)) == 2
+
+
+async def test_dropped_events_do_not_meter(redis) -> None:
+    from datetime import UTC, datetime
+    from uuid import UUID
+
+    from app.services import billing
+
+    acc_id = UUID(int=8)
+    await billing.cache_site_account(redis, "demo", acc_id)
+    # A bot is dropped before the XADD -> never metered.
+    await ingest.ingest_event(_event(), "9.9.9.9", "Googlebot/2.1", None, redis)
+    assert await billing.get_usage(redis, acc_id, datetime.now(UTC)) == 0
+
+
 async def test_ingest_marks_active_and_publishes(redis, monkeypatch) -> None:
     # subscribe_events reads the shared client; point it at the same fake so the
     # publish from ingest_event reaches this subscriber.

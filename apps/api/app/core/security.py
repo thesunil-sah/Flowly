@@ -25,11 +25,16 @@ from app.models.tables import Account
 
 _hasher = PasswordHasher()
 
-TokenType = Literal["access", "refresh", "reset"]
+TokenType = Literal["access", "refresh", "reset", "unsubscribe"]
 
 # Short-lived token minted after a password-reset code is verified; it authorizes
 # exactly one password change.
 RESET_TOKEN_TTL = 600  # 10 minutes
+
+# Unsubscribe links live in emails that may be opened much later, so the token is
+# effectively non-expiring (10 years). It carries no privilege beyond flipping the
+# account's email_opt_out flag, so a long life is safe.
+UNSUBSCRIBE_TOKEN_TTL = 10 * 365 * 24 * 3600
 
 # auto_error=False so a missing/blank header raises our uniform AuthError (401)
 # instead of FastAPI's default 403.
@@ -70,6 +75,12 @@ def create_refresh_token(account_id: UUID) -> str:
 
 def create_reset_token(account_id: UUID) -> str:
     return _create_token(account_id, "reset", RESET_TOKEN_TTL)
+
+
+def create_unsubscribe_token(account_id: UUID) -> str:
+    """A long-lived signed token that authorizes one thing: opting the account
+    out of non-transactional email. Embedded in the unsubscribe link footer."""
+    return _create_token(account_id, "unsubscribe", UNSUBSCRIBE_TOKEN_TTL)
 
 
 def decode_token(token: str, expected_type: TokenType) -> UUID:

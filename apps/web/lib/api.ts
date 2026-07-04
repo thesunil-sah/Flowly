@@ -44,6 +44,28 @@ export type Site = {
 
 export type SiteStatus = { connected: boolean };
 
+// --- Billing (Phase 7) -----------------------------------------------------
+export type BillingTier = "pro" | "business";
+export type BillingInterval = "monthly" | "annual";
+
+export type UsageSummary = {
+  plan: string;
+  quota: number;
+  used: number;
+  pct: number;
+  status: "ok" | "warning" | "over";
+};
+
+export type CheckoutResponse = { url: string };
+export type PortalResponse = { url: string };
+
+// --- Sharing (Phase 8) -----------------------------------------------------
+/** A site's public share link (`url` is null when no live link exists). */
+export type ShareLink = { url: string | null };
+
+/** Metadata for a public (shared) dashboard — no account info. */
+export type PublicSite = { domain: string; show_badge: boolean };
+
 /**
  * WebSocket URL for the live stream of a site. A browser WebSocket can't send
  * an Authorization header, so the short-lived access token rides in the query
@@ -105,6 +127,20 @@ export function statsPath(
   return `/stats/${endpoint}?${q.toString()}`;
 }
 
+/**
+ * Build a `/public/{token}/*` path with range params. The public shared
+ * dashboard is unauthenticated and scoped to one site by the token.
+ */
+export function publicStatsPath(
+  token: string,
+  endpoint: string,
+  range: StatsRange,
+  extra: Record<string, string> = {},
+): string {
+  const q = new URLSearchParams({ from: range.from, to: range.to, ...extra });
+  return `/public/${encodeURIComponent(token)}/${endpoint}?${q.toString()}`;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -159,4 +195,44 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
+}
+
+/**
+ * Fetch a public (share-token) endpoint with NO auth header. Used only by the
+ * `/share/{token}` dashboard, whose data is served by the token-scoped
+ * `/public/*` routes (the token is the credential, not a bearer JWT).
+ */
+export async function publicFetch<T>(path: string): Promise<T> {
+  const resp = await fetch(`${BASE}${path}`);
+  if (!resp.ok) throw new ApiError(resp.status, resp.statusText);
+  return (await resp.json()) as T;
+}
+
+/**
+ * Download an aggregated report as a CSV file (authed). The browser can't read
+ * the server's Content-Disposition across CORS, so the filename is rebuilt
+ * client-side. Triggers a save via a temporary object URL.
+ */
+export async function downloadExportCsv(
+  siteId: string,
+  range: StatsRange,
+  dataset = "overview",
+): Promise<void> {
+  const q = new URLSearchParams({ site_id: siteId, from: range.from, to: range.to, dataset });
+  const path = `/stats/export?${q.toString()}`;
+  let resp = await request(path, {}, getAccessToken());
+  if (resp.status === 401 && (await tryRefresh())) {
+    resp = await request(path, {}, getAccessToken());
+  }
+  if (!resp.ok) throw new ApiError(resp.status, resp.statusText);
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const stamp = range.to.slice(0, 10);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `flowly-${dataset}-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

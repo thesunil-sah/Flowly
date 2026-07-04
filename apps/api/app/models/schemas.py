@@ -5,6 +5,7 @@ so every entry point stores and looks up the same form.
 """
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -165,6 +166,54 @@ class SiteStatus(BaseModel):
     """Install-verification result: has the site received its first event yet?"""
 
     connected: bool
+
+
+# --- Sharing (Phase 8) ----------------------------------------------------
+class ShareLinkOut(BaseModel):
+    """A site's public share link. `url` is null when no live link exists."""
+
+    url: str | None = None
+
+
+class PublicSiteOut(BaseModel):
+    """Metadata for a public (shared) dashboard — no account info exposed.
+
+    `show_badge` is true on the free tier (drives the "Powered by Flowly" badge,
+    Phase 8); `domain` is the cosmetic site label.
+    """
+
+    domain: str
+    show_badge: bool
+
+
+# --- Billing (Phase 7) ----------------------------------------------------
+class CheckoutRequest(BaseModel):
+    """Start a subscription for a tier + billing interval."""
+
+    tier: Literal["pro", "business"]
+    interval: Literal["monthly", "annual"] = "monthly"
+
+
+class CheckoutResponse(BaseModel):
+    """A Stripe Checkout URL to redirect the browser to."""
+
+    url: str
+
+
+class PortalResponse(BaseModel):
+    """A Stripe Customer Portal URL (manage / cancel)."""
+
+    url: str
+
+
+class UsageSummary(BaseModel):
+    """Current-month usage vs the account's effective plan quota."""
+
+    plan: str
+    quota: int
+    used: int
+    pct: float
+    status: str  # "ok" | "warning" (>=80%) | "over" (>=100%)
 
 
 # --- Stats (Phase 5) ------------------------------------------------------

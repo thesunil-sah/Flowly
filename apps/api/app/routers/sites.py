@@ -21,9 +21,9 @@ from app.core.security import CurrentUser
 from app.db.clickhouse import ClickHouseDep
 from app.db.postgres import get_session
 from app.db.redis import get_redis
-from app.models.schemas import SiteCreate, SiteOut, SiteStatus
+from app.models.schemas import ShareLinkOut, SiteCreate, SiteOut, SiteStatus
 from app.models.tables import Site
-from app.services import sites
+from app.services import sharing, sites
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
@@ -58,9 +58,11 @@ async def list_sites(account: CurrentUser, session: SessionDep) -> list[SiteOut]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_site(data: SiteCreate, account: CurrentUser, session: SessionDep) -> SiteOut:
+async def create_site(
+    data: SiteCreate, account: CurrentUser, session: SessionDep, redis: RedisDep
+) -> SiteOut:
     """Register a new site and return it with its install snippet."""
-    site = await sites.create_site(session, account.id, data.domain)
+    site = await sites.create_site(session, redis, account.id, data.domain)
     return sites.to_site_out(site)
 
 
@@ -75,3 +77,24 @@ async def get_site_status(site: OwnedSite, redis: RedisDep, client: ClickHouseDe
     """Install verification: has the site received its first event yet?"""
     connected = await sites.first_event_seen(redis, client, site.site_id)
     return SiteStatus(connected=connected)
+
+
+@router.get("/{site_id}/share")
+async def get_share_link(site: OwnedSite, session: SessionDep) -> ShareLinkOut:
+    """The site's current public share link (null if none is active)."""
+    share = await sharing.active_share(session, site)
+    return ShareLinkOut(url=sharing.share_url(share.token) if share else None)
+
+
+@router.post("/{site_id}/share", status_code=status.HTTP_201_CREATED)
+async def create_share_link(site: OwnedSite, session: SessionDep) -> ShareLinkOut:
+    """Create (or rotate) the site's public share link."""
+    share = await sharing.create_share(session, site)
+    return ShareLinkOut(url=sharing.share_url(share.token))
+
+
+@router.delete("/{site_id}/share", status_code=status.HTTP_200_OK)
+async def revoke_share_link(site: OwnedSite, session: SessionDep) -> ShareLinkOut:
+    """Revoke the site's public share link (it stops resolving immediately)."""
+    await sharing.revoke_shares(session, site)
+    return ShareLinkOut(url=None)

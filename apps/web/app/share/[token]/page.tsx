@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { PoweredByBadge } from "@/components/PoweredByBadge";
 import {
   BreakdownTable,
   MetricCards,
@@ -10,18 +11,16 @@ import {
   TrafficChart,
   UtmTable,
 } from "@/components/stats";
-import { ShareControl } from "@/components/ShareControl";
 import {
-  useAudience,
-  usePages,
-  useOverview,
-  useSources,
-  useTimeseries,
-  type AudienceDimension,
-  type PageKind,
-} from "@/hooks/useStats";
-import { useSites } from "@/hooks/useSites";
-import { downloadExportCsv, type StatsRange } from "@/lib/api";
+  usePublicAudience,
+  usePublicMeta,
+  usePublicOverview,
+  usePublicPages,
+  usePublicSources,
+  usePublicTimeseries,
+} from "@/hooks/usePublicStats";
+import type { AudienceDimension, PageKind } from "@/hooks/useStats";
+import type { StatsRange } from "@/lib/api";
 
 const PRESETS = [
   { key: "24h", label: "24h", days: 1 },
@@ -74,15 +73,15 @@ function Tabs<T extends string>({
   );
 }
 
-function StatsView({ siteId, range }: { siteId: string; range: StatsRange }) {
+function PublicStatsView({ token, range }: { token: string; range: StatsRange }) {
   const [dimension, setDimension] = useState<AudienceDimension>("country");
   const [pageKind, setPageKind] = useState<PageKind>("top");
 
-  const overview = useOverview(siteId, range);
-  const timeseries = useTimeseries(siteId, range);
-  const sources = useSources(siteId, range);
-  const audience = useAudience(siteId, range, dimension);
-  const pages = usePages(siteId, range, pageKind);
+  const overview = usePublicOverview(token, range);
+  const timeseries = usePublicTimeseries(token, range);
+  const sources = usePublicSources(token, range);
+  const audience = usePublicAudience(token, range, dimension);
+  const pages = usePublicPages(token, range, pageKind);
 
   return (
     <div className="flex flex-col gap-4">
@@ -98,7 +97,6 @@ function StatsView({ siteId, range }: { siteId: string; range: StatsRange }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <BreakdownTable title="Sources" rows={sources.data?.sources ?? []} labelFallback="direct" />
-
         <div className="rounded border border-gray-300 p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-600">Audience</h2>
@@ -117,82 +115,47 @@ function StatsView({ siteId, range }: { siteId: string; range: StatsRange }) {
       </div>
 
       {sources.data && <UtmTable rows={sources.data.utm} />}
-
-      <ShareControl siteId={siteId} />
     </div>
   );
 }
 
-export default function DashboardPage() {
-  const { data: sites, isLoading } = useSites();
-  const [selected, setSelected] = useState<string | null>(null);
+export default function SharePage() {
+  const params = useParams<{ token: string }>();
+  const token = params.token;
   const [presetDays, setPresetDays] = useState(7);
-  // Freeze the window when the preset changes so query keys don't churn on every
-  // render; re-selecting a preset refreshes "now".
   const range = useMemo(() => rangeForDays(presetDays), [presetDays]);
+  const meta = usePublicMeta(token);
 
-  if (isLoading) {
-    return <main className="flex flex-1 items-center justify-center p-6">Loading…</main>;
-  }
-
-  if (!sites || sites.length === 0) {
+  if (meta.isError) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="text-gray-600">No sites yet. Add one to start seeing your traffic.</p>
-        <Link href="/sites" className="rounded bg-black px-4 py-2 text-sm text-white">
-          Add a site
-        </Link>
+        <h1 className="text-2xl font-semibold">Dashboard not found</h1>
+        <p className="text-gray-600">This share link is invalid or has been revoked.</p>
       </main>
     );
   }
 
-  const activeSiteId = selected ?? sites[0].site_id;
-
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
-          {sites.length > 1 && (
-            <select
-              value={activeSiteId}
-              onChange={(e) => setSelected(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm"
-            >
-              {sites.map((s) => (
-                <option key={s.id} value={s.site_id}>
-                  {s.domain}
-                </option>
-              ))}
-            </select>
-          )}
+        <div>
+          <p className="text-xs uppercase tracking-wide text-gray-400">Shared dashboard</p>
+          <h1 className="text-2xl font-semibold">{meta.data?.domain ?? "…"}</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <Tabs
-            tabs={PRESETS.map((p) => ({ key: p.key, label: p.label }))}
-            active={PRESETS.find((p) => p.days === presetDays)!.key}
-            onChange={(key) => setPresetDays(PRESETS.find((p) => p.key === key)!.days)}
-          />
-          <button
-            onClick={() => downloadExportCsv(activeSiteId, range, "overview")}
-            className="text-sm text-gray-600 underline"
-          >
-            Export CSV
-          </button>
-          <Link href="/sites" className="text-sm text-gray-600 underline">
-            Sites
-          </Link>
-          <Link href="/billing" className="text-sm text-gray-600 underline">
-            Billing
-          </Link>
-          <Link href="/live" className="text-sm text-gray-600 underline">
-            Live →
-          </Link>
-        </div>
+        <Tabs
+          tabs={PRESETS.map((p) => ({ key: p.key, label: p.label }))}
+          active={PRESETS.find((p) => p.days === presetDays)!.key}
+          onChange={(key) => setPresetDays(PRESETS.find((p) => p.key === key)!.days)}
+        />
       </div>
 
-      <StatsView key={activeSiteId} siteId={activeSiteId} range={range} />
+      <PublicStatsView token={token} range={range} />
+
+      {meta.data?.show_badge && (
+        <div className="flex justify-center pt-2">
+          <PoweredByBadge />
+        </div>
+      )}
     </main>
   );
 }

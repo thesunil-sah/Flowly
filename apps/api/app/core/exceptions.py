@@ -69,6 +69,13 @@ class NotFoundError(AppError):
     message = "Not found."
 
 
+class BillingError(AppError):
+    """A billing action can't proceed (e.g. portal without an active customer)."""
+
+    status_code = 402
+    message = "Billing is not set up for this account."
+
+
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 

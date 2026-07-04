@@ -13,7 +13,13 @@ from alembic.config import Config
 
 # Repo layout: tests/ -> apps/api/ (where alembic.ini lives).
 _API_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TABLES = {"accounts", "sites", "subscriptions"}
+EXPECTED_TABLES = {
+    "accounts",
+    "sites",
+    "subscriptions",
+    "share_tokens",
+    "onboarding_emails",
+}
 
 
 @pytest.fixture

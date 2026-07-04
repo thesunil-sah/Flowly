@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { apiFetch, type Site, type SiteStatus } from "@/lib/api";
+import { apiFetch, type ShareLink, type Site, type SiteStatus } from "@/lib/api";
 
 /** The authenticated account's sites (used to pick which view to show). */
 export function useSites() {
@@ -41,5 +41,36 @@ export function useSiteStatus(siteId: string | null, startedAt: number) {
       if (Date.now() - startedAt > STATUS_POLL_TIMEOUT_MS) return false; // give up auto-poll
       return STATUS_POLL_INTERVAL_MS;
     },
+  });
+}
+
+function sharePath(siteId: string): string {
+  return `/sites/${encodeURIComponent(siteId)}/share`;
+}
+
+/** The site's current public share link (url null when none is active). */
+export function useShareLink(siteId: string | null) {
+  return useQuery({
+    queryKey: ["share-link", siteId],
+    queryFn: () => apiFetch<ShareLink>(sharePath(siteId!)),
+    enabled: !!siteId,
+  });
+}
+
+/** Create (or rotate) the site's public share link. */
+export function useCreateShare(siteId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<ShareLink>(sharePath(siteId), { method: "POST" }),
+    onSuccess: (data) => qc.setQueryData(["share-link", siteId], data),
+  });
+}
+
+/** Revoke the site's public share link. */
+export function useRevokeShare(siteId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<ShareLink>(sharePath(siteId), { method: "DELETE" }),
+    onSuccess: (data) => qc.setQueryData(["share-link", siteId], data),
   });
 }
