@@ -53,7 +53,7 @@ export default function SignUpPage() {
   if (step === "code") {
     return (
       <AuthShell title="Check your email">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           We sent a 6-digit code to <span className="font-medium">{email}</span>.
         </p>
         <DevCodeHint code={devCode} />
@@ -74,7 +74,7 @@ export default function SignUpPage() {
           type="button"
           onClick={() => resend.mutate({ email }, { onSuccess: (d) => setDevCode(d.dev_code) })}
           disabled={resend.isPending}
-          className="text-sm text-gray-600 underline disabled:opacity-50"
+          className="text-sm text-muted-foreground underline disabled:opacity-50"
         >
           Resend code
         </button>
@@ -123,7 +123,7 @@ export default function SignUpPage() {
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"
         />
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={remember}
@@ -138,7 +138,7 @@ export default function SignUpPage() {
         <Submit pending={signup.isPending}>Sign up</Submit>
       </form>
       <SocialButtons />
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link href="/sign-in" className="underline">
           Sign in

@@ -12,8 +12,8 @@ export function UsageBanner() {
 
   const over = data.status === "over";
   const tone = over
-    ? "bg-red-50 text-red-800 border-red-200"
-    : "bg-amber-50 text-amber-800 border-amber-200";
+    ? "border-destructive/30 bg-destructive/10"
+    : "border-warning/30 bg-warning/10";
   const pct = Math.round(data.pct);
   const message = over
     ? `You've used ${pct}% of your ${data.plan} plan's monthly pageviews. Upgrade to keep your reports accurate.`

@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { LayoutGrid } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { useActiveSite } from "@/components/layout/site-context";
+import { SegmentedTabs } from "@/components/segmented-tabs";
+import { PageSkeleton } from "@/components/skeletons";
 import {
   BreakdownTable,
   MetricCards,
@@ -11,6 +15,8 @@ import {
   UtmTable,
 } from "@/components/stats";
 import { ShareControl } from "@/components/ShareControl";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   useAudience,
   usePages,
@@ -20,7 +26,6 @@ import {
   type AudienceDimension,
   type PageKind,
 } from "@/hooks/useStats";
-import { useSites } from "@/hooks/useSites";
 import { downloadExportCsv, type StatsRange } from "@/lib/api";
 
 const PRESETS = [
@@ -48,32 +53,6 @@ function rangeForDays(days: number): StatsRange {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-function Tabs<T extends string>({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: { key: T; label: string }[];
-  active: T;
-  onChange: (key: T) => void;
-}) {
-  return (
-    <div className="flex gap-1">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={`rounded px-2 py-1 text-xs ${
-            active === t.key ? "bg-black text-white" : "text-gray-600 hover:bg-gray-100"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function StatsView({ siteId, range }: { siteId: string; range: StatsRange }) {
   const [dimension, setDimension] = useState<AudienceDimension>("country");
   const [pageKind, setPageKind] = useState<PageKind>("top");
@@ -89,7 +68,7 @@ function StatsView({ siteId, range }: { siteId: string; range: StatsRange }) {
       {overview.data ? (
         <MetricCards data={overview.data} />
       ) : (
-        <div className="rounded border border-gray-300 p-6 text-sm text-gray-400">
+        <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
           {overview.isError ? "Couldn't load metrics." : "Loading metrics…"}
         </div>
       )}
@@ -99,19 +78,19 @@ function StatsView({ siteId, range }: { siteId: string; range: StatsRange }) {
       <div className="grid gap-4 lg:grid-cols-2">
         <BreakdownTable title="Sources" rows={sources.data?.sources ?? []} labelFallback="direct" />
 
-        <div className="rounded border border-gray-300 p-4">
+        <div className="rounded-lg border border-border bg-card p-4 shadow-card">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-600">Audience</h2>
-            <Tabs tabs={AUDIENCE_TABS} active={dimension} onChange={setDimension} />
+            <h2 className="text-sm font-semibold text-muted-foreground">Audience</h2>
+            <SegmentedTabs tabs={AUDIENCE_TABS} active={dimension} onChange={setDimension} />
           </div>
           <BreakdownTable title="" rows={audience.data?.rows ?? []} labelFallback="Unknown" />
         </div>
       </div>
 
-      <div className="rounded border border-gray-300 p-4">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-card">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-600">Pages</h2>
-          <Tabs tabs={PAGE_TABS} active={pageKind} onChange={setPageKind} />
+          <h2 className="text-sm font-semibold text-muted-foreground">Pages</h2>
+          <SegmentedTabs tabs={PAGE_TABS} active={pageKind} onChange={setPageKind} />
         </div>
         <PagesTable rows={pages.data?.rows ?? []} metric={pages.data?.metric ?? "pageviews"} />
       </div>
@@ -124,75 +103,52 @@ function StatsView({ siteId, range }: { siteId: string; range: StatsRange }) {
 }
 
 export default function DashboardPage() {
-  const { data: sites, isLoading } = useSites();
-  const [selected, setSelected] = useState<string | null>(null);
+  const { activeSiteId, sites, isLoading } = useActiveSite();
   const [presetDays, setPresetDays] = useState(7);
   // Freeze the window when the preset changes so query keys don't churn on every
   // render; re-selecting a preset refreshes "now".
   const range = useMemo(() => rangeForDays(presetDays), [presetDays]);
 
   if (isLoading) {
-    return <main className="flex flex-1 items-center justify-center p-6">Loading…</main>;
+    return <PageSkeleton />;
   }
 
-  if (!sites || sites.length === 0) {
+  if (sites.length === 0 || !activeSiteId) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="text-gray-600">No sites yet. Add one to start seeing your traffic.</p>
-        <Link href="/sites" className="rounded bg-black px-4 py-2 text-sm text-white">
-          Add a site
-        </Link>
-      </main>
+      <EmptyState
+        icon={LayoutGrid}
+        title="No sites yet"
+        description="Add a site and install the snippet to start seeing your traffic."
+        action={
+          <Button asChild>
+            <Link href="/sites">Add a site</Link>
+          </Button>
+        }
+      />
     );
   }
 
-  const activeSiteId = selected ?? sites[0].site_id;
-
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
-          {sites.length > 1 && (
-            <select
-              value={activeSiteId}
-              onChange={(e) => setSelected(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm"
-            >
-              {sites.map((s) => (
-                <option key={s.id} value={s.site_id}>
-                  {s.domain}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <Tabs
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <div className="flex items-center gap-2">
+          <SegmentedTabs
             tabs={PRESETS.map((p) => ({ key: p.key, label: p.label }))}
             active={PRESETS.find((p) => p.days === presetDays)!.key}
             onChange={(key) => setPresetDays(PRESETS.find((p) => p.key === key)!.days)}
           />
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => downloadExportCsv(activeSiteId, range, "overview")}
-            className="text-sm text-gray-600 underline"
           >
             Export CSV
-          </button>
-          <Link href="/sites" className="text-sm text-gray-600 underline">
-            Sites
-          </Link>
-          <Link href="/billing" className="text-sm text-gray-600 underline">
-            Billing
-          </Link>
-          <Link href="/live" className="text-sm text-gray-600 underline">
-            Live →
-          </Link>
+          </Button>
         </div>
       </div>
 
       <StatsView key={activeSiteId} siteId={activeSiteId} range={range} />
-    </main>
+    </div>
   );
 }

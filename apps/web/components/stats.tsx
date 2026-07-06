@@ -1,15 +1,22 @@
 "use client";
 
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
+import {
+  axisProps,
+  ChartGradient,
+  ChartTooltip,
+  gridProps,
+} from "@/components/charts/chart-theme";
 import type {
   BreakdownRow,
   MetricDelta,
@@ -18,23 +25,7 @@ import type {
   Timeseries,
   UtmRow,
 } from "@/lib/api";
-
-// --- Formatting (never leak float artifacts; CLAUDE.md §4) -----------------
-const numberFmt = new Intl.NumberFormat();
-
-function formatNumber(n: number): string {
-  return numberFmt.format(Math.round(n));
-}
-
-function formatDuration(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, "0")}`;
-}
-
-function formatPercent(n: number): string {
-  return `${Math.round(n * 10) / 10}%`;
-}
+import { formatCompact, formatDuration, formatNumber, formatPercent } from "@/lib/format";
 
 // --- Metric cards ----------------------------------------------------------
 function DeltaBadge({ delta, invert }: { delta: MetricDelta; invert?: boolean }) {
@@ -43,7 +34,7 @@ function DeltaBadge({ delta, invert }: { delta: MetricDelta; invert?: boolean })
   // For most metrics up is good; for bounce rate lower is better, so invert.
   const good = invert ? !up : up;
   const flat = delta.change_pct === 0;
-  const color = flat ? "text-gray-400" : good ? "text-green-600" : "text-red-600";
+  const color = flat ? "text-muted-foreground" : good ? "text-success" : "text-destructive";
   const arrow = flat ? "" : up ? "▲" : "▼";
   return (
     <span className={`text-xs ${color}`}>
@@ -64,8 +55,8 @@ function MetricCard({
   invert?: boolean;
 }) {
   return (
-    <div className="rounded border border-gray-300 p-4">
-      <div className="text-sm text-gray-600">{label}</div>
+    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+      <div className="text-sm text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-baseline gap-2">
         <span className="text-2xl font-semibold tabular-nums">{value}</span>
         <DeltaBadge delta={delta} invert={invert} />
@@ -111,31 +102,35 @@ export function TrafficChart({ data }: { data: Timeseries }) {
   const points = data.points.map((p) => ({ ...p, label: tick(p.bucket) }));
 
   return (
-    <div className="rounded border border-gray-300 p-4">
-      <h2 className="mb-3 text-sm font-semibold text-gray-600">Traffic over time</h2>
+    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+      <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Traffic over time</h2>
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={points} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-          <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
-          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} width={40} />
-          <Tooltip />
-          <Line
+        <ComposedChart data={points} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+          <defs>
+            <ChartGradient id="trafficGradient" color="var(--chart-1)" />
+          </defs>
+          <CartesianGrid {...gridProps} />
+          <XAxis dataKey="label" minTickGap={24} {...axisProps} />
+          <YAxis allowDecimals={false} width={40} tickFormatter={formatCompact} {...axisProps} />
+          <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--border)" }} />
+          <Area
             type="monotone"
             dataKey="visitors"
-            stroke="#000"
+            stroke="var(--chart-1)"
             strokeWidth={2}
+            fill="url(#trafficGradient)"
             dot={false}
             name="Visitors"
           />
           <Line
             type="monotone"
             dataKey="pageviews"
-            stroke="#9ca3af"
+            stroke="var(--chart-2)"
             strokeWidth={2}
             dot={false}
             name="Pageviews"
           />
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
@@ -145,7 +140,7 @@ export function TrafficChart({ data }: { data: Timeseries }) {
 function EmptyRow({ span }: { span: number }) {
   return (
     <tr>
-      <td colSpan={span} className="py-3 text-center text-sm text-gray-400">
+      <td colSpan={span} className="py-3 text-center text-sm text-muted-foreground">
         No data in this range
       </td>
     </tr>
@@ -162,11 +157,11 @@ export function BreakdownTable({
   labelFallback?: string;
 }) {
   return (
-    <div className="rounded border border-gray-300 p-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-600">{title}</h2>
+    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+      <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{title}</h2>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs text-gray-400">
+          <tr className="text-left text-xs text-muted-foreground">
             <th className="font-normal">Source</th>
             <th className="w-20 text-right font-normal">Visitors</th>
             <th className="w-24 text-right font-normal">Pageviews</th>
@@ -177,10 +172,10 @@ export function BreakdownTable({
             <EmptyRow span={3} />
           ) : (
             rows.map((r) => (
-              <tr key={r.label} className="border-t border-gray-100">
+              <tr key={r.label} className="border-t border-border">
                 <td className="truncate py-1">{r.label || labelFallback}</td>
                 <td className="py-1 text-right tabular-nums">{formatNumber(r.visitors)}</td>
-                <td className="py-1 text-right tabular-nums text-gray-500">
+                <td className="py-1 text-right tabular-nums text-muted-foreground">
                   {formatNumber(r.pageviews)}
                 </td>
               </tr>
@@ -204,7 +199,7 @@ export function PagesTable({
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="text-left text-xs text-gray-400">
+        <tr className="text-left text-xs text-muted-foreground">
           <th className="font-normal">Path</th>
           <th className="w-20 text-right font-normal capitalize">{metric}</th>
           <th className="w-20 text-right font-normal">Visitors</th>
@@ -215,10 +210,10 @@ export function PagesTable({
           <EmptyRow span={3} />
         ) : (
           rows.map((r) => (
-            <tr key={r.label} className="border-t border-gray-100">
+            <tr key={r.label} className="border-t border-border">
               <td className="truncate py-1 font-mono">{r.label || labelFallback}</td>
               <td className="py-1 text-right tabular-nums">{formatNumber(r.count)}</td>
-              <td className="py-1 text-right tabular-nums text-gray-500">
+              <td className="py-1 text-right tabular-nums text-muted-foreground">
                 {formatNumber(r.visitors)}
               </td>
             </tr>
@@ -232,11 +227,11 @@ export function PagesTable({
 export function UtmTable({ rows }: { rows: UtmRow[] }) {
   if (rows.length === 0) return null;
   return (
-    <div className="rounded border border-gray-300 p-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-600">UTM campaigns</h2>
+    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+      <h2 className="mb-2 text-sm font-semibold text-muted-foreground">UTM campaigns</h2>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs text-gray-400">
+          <tr className="text-left text-xs text-muted-foreground">
             <th className="font-normal">Source</th>
             <th className="font-normal">Medium</th>
             <th className="font-normal">Campaign</th>
@@ -245,10 +240,10 @@ export function UtmTable({ rows }: { rows: UtmRow[] }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-t border-gray-100">
+            <tr key={i} className="border-t border-border">
               <td className="truncate py-1">{r.utm_source}</td>
-              <td className="truncate py-1 text-gray-500">{r.utm_medium || "—"}</td>
-              <td className="truncate py-1 text-gray-500">{r.utm_campaign || "—"}</td>
+              <td className="truncate py-1 text-muted-foreground">{r.utm_medium || "—"}</td>
+              <td className="truncate py-1 text-muted-foreground">{r.utm_campaign || "—"}</td>
               <td className="py-1 text-right tabular-nums">{formatNumber(r.visitors)}</td>
             </tr>
           ))}

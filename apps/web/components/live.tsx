@@ -1,40 +1,36 @@
 "use client";
 
 import type { FeedRow, PageCount } from "@/hooks/useLiveTraffic";
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString();
-}
+import { formatTime } from "@/lib/format";
 
 export function LiveCounter({ count, connected }: { count: number; connected: boolean }) {
   return (
-    <div className="rounded border border-gray-300 p-6">
-      <div className="flex items-center gap-2 text-sm text-gray-600">
+    <div className="rounded-lg border border-border bg-card p-6 shadow-card">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span
-          className={`inline-block h-2 w-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`}
+          className={`inline-block h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-muted-foreground/40"}`}
           aria-hidden
         />
         {connected ? "Live" : "Connecting…"}
       </div>
       <div className="mt-2 text-5xl font-semibold tabular-nums">{count}</div>
-      <div className="text-sm text-gray-600">visitors online now</div>
+      <div className="text-sm text-muted-foreground">visitors online now</div>
     </div>
   );
 }
 
 export function LiveFeed({ feed }: { feed: FeedRow[] }) {
   return (
-    <div className="rounded border border-gray-300 p-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-600">Live feed</h2>
+    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+      <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Live feed</h2>
       {feed.length === 0 ? (
-        <p className="text-sm text-gray-400">Waiting for live events…</p>
+        <p className="text-sm text-muted-foreground">Waiting for live events…</p>
       ) : (
         <ul className="space-y-1 text-sm">
           {feed.map((e) => (
             <li key={e.key} className="flex justify-between gap-3">
               <span className="truncate font-mono">{e.path}</span>
-              <span className="shrink-0 text-gray-500">
+              <span className="shrink-0 text-muted-foreground">
                 {[e.country, e.device, e.browser, e.source].filter(Boolean).join(" · ")}
                 {" · "}
                 {formatTime(e.ts)}
@@ -49,16 +45,16 @@ export function LiveFeed({ feed }: { feed: FeedRow[] }) {
 
 export function CurrentPages({ pages }: { pages: PageCount[] }) {
   return (
-    <div className="rounded border border-gray-300 p-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-600">Current pages</h2>
+    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+      <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Current pages</h2>
       {pages.length === 0 ? (
-        <p className="text-sm text-gray-400">Waiting for live events…</p>
+        <p className="text-sm text-muted-foreground">Waiting for live events…</p>
       ) : (
         <ul className="space-y-1 text-sm">
           {pages.map((p) => (
             <li key={p.path} className="flex justify-between gap-3">
               <span className="truncate font-mono">{p.path}</span>
-              <span className="shrink-0 tabular-nums text-gray-500">{p.count}</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{p.count}</span>
             </li>
           ))}
         </ul>

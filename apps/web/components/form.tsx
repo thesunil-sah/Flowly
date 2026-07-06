@@ -2,6 +2,9 @@
 
 import type { InputHTMLAttributes, ReactNode } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="flex flex-1 items-center justify-center p-6">
@@ -19,35 +22,28 @@ export function Field({
 }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block space-y-1">
-      <span className="text-sm text-gray-600">{label}</span>
-      <input
-        {...props}
-        className="w-full rounded border border-gray-300 px-3 py-2 outline-none focus:border-black"
-      />
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <Input {...props} />
     </label>
   );
 }
 
 export function Submit({ children, pending }: { children: ReactNode; pending: boolean }) {
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-    >
+    <Button type="submit" disabled={pending} className="w-full">
       {pending ? "…" : children}
-    </button>
+    </Button>
   );
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-red-600">{children}</p>;
+  return <p className="text-sm text-destructive">{children}</p>;
 }
 
 export function DevCodeHint({ code }: { code: string | null | undefined }) {
   if (!code) return null;
   return (
-    <p className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+    <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm">
       Dev mode — your code is <span className="font-mono font-semibold">{code}</span>
     </p>
   );

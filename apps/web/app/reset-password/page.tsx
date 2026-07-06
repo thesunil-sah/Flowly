@@ -49,7 +49,7 @@ export default function ResetPasswordPage() {
   if (token === null) {
     return (
       <AuthShell title="Reset password">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           No active reset request.{" "}
           <Link href="/forgot-password" className="underline">
             Start over

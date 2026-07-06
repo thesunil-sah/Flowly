@@ -35,7 +35,7 @@ export default function OAuthCallbackPage() {
     return (
       <AuthShell title="Sign-in failed">
         <ErrorText>{error}</ErrorText>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           <Link href="/sign-in" className="underline">
             Back to sign in
           </Link>
@@ -50,7 +50,7 @@ export default function OAuthCallbackPage() {
 
   return (
     <AuthShell title="Nothing to do here">
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted-foreground">
         <Link href="/sign-in" className="underline">
           Go to sign in
         </Link>

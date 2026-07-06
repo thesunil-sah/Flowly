@@ -5,6 +5,8 @@ import { useState, type FormEvent } from "react";
 
 import { ErrorText, Field, Submit } from "@/components/form";
 import { InstallGuide, StatusPill } from "@/components/install";
+import { TableSkeleton } from "@/components/skeletons";
+import { Button } from "@/components/ui/button";
 import { useCreateSite, useSites, useSiteStatus } from "@/hooks/useSites";
 import type { Site } from "@/lib/api";
 
@@ -16,14 +18,14 @@ function InstallStep({ site, onBack }: { site: Site; onBack: () => void }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <button type="button" onClick={onBack} className="self-start text-sm text-gray-600 underline">
+      <Button variant="link" className="self-start px-0" onClick={onBack}>
         ← All sites
-      </button>
+      </Button>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{site.domain}</h1>
-          <p className="text-sm text-gray-600">Install the snippet to start tracking.</p>
+          <p className="text-sm text-muted-foreground">Install the snippet to start tracking.</p>
         </div>
         <StatusPill connected={connected} />
       </div>
@@ -32,20 +34,20 @@ function InstallStep({ site, onBack }: { site: Site; onBack: () => void }) {
 
       {connected ? (
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-gray-600">🎉 We received your first pageview.</span>
+          <span className="text-muted-foreground">🎉 We received your first pageview.</span>
           <Link href="/dashboard" className="underline">
             Go to dashboard →
           </Link>
         </div>
       ) : (
-        <button
-          type="button"
+        <Button
+          variant="link"
+          className="self-start px-0"
           onClick={() => status.refetch()}
           disabled={status.isFetching}
-          className="self-start text-sm text-gray-600 underline disabled:opacity-50"
         >
           {status.isFetching ? "Checking…" : "Still waiting? Check again"}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -54,20 +56,16 @@ function InstallStep({ site, onBack }: { site: Site; onBack: () => void }) {
 function SiteList({ sites, onOpen }: { sites: Site[]; onOpen: (site: Site) => void }) {
   return (
     <div className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-gray-600">Your sites</h2>
+      <h2 className="text-sm font-semibold text-muted-foreground">Your sites</h2>
       {sites.map((s) => (
         <div
           key={s.id}
-          className="flex items-center justify-between rounded border border-gray-300 p-4"
+          className="flex items-center justify-between rounded-lg border border-border bg-card p-4 shadow-card"
         >
           <span className="font-medium">{s.domain}</span>
-          <button
-            type="button"
-            onClick={() => onOpen(s)}
-            className="text-sm text-gray-600 underline"
-          >
+          <Button variant="ghost" size="sm" onClick={() => onOpen(s)}>
             Open
-          </button>
+          </Button>
         </div>
       ))}
     </div>
@@ -87,7 +85,7 @@ function AddStep({ onCreated }: { onCreated: (site: Site) => void }) {
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold">Add a site</h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Enter the domain you want to track. It&apos;s just a label — you&apos;ll get a snippet to
           install next.
         </p>
@@ -115,11 +113,15 @@ export default function SitesPage() {
   const [viewing, setViewing] = useState<Site | null>(null);
 
   if (isLoading) {
-    return <main className="flex flex-1 items-center justify-center p-6">Loading…</main>;
+    return (
+      <div className="mx-auto w-full max-w-2xl">
+        <TableSkeleton rows={4} />
+      </div>
+    );
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       {viewing ? (
         <InstallStep site={viewing} onBack={() => setViewing(null)} />
       ) : (
@@ -128,6 +130,6 @@ export default function SitesPage() {
           <AddStep onCreated={setViewing} />
         </>
       )}
-    </main>
+    </div>
   );
 }

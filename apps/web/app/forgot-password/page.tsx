@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
   if (step === "code") {
     return (
       <AuthShell title="Enter reset code">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           If an account exists for <span className="font-medium">{email}</span>, a code was sent.
         </p>
         <DevCodeHint code={devCode} />
@@ -70,7 +70,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell title="Forgot password">
-      <p className="text-sm text-gray-600">Enter your email and we&apos;ll send a reset code.</p>
+      <p className="text-sm text-muted-foreground">Enter your email and we&apos;ll send a reset code.</p>
       <form onSubmit={onSubmitEmail} className="space-y-4">
         <Field
           label="Email"
@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
         {forgot.isError ? <ErrorText>{forgot.error.message}</ErrorText> : null}
         <Submit pending={forgot.isPending}>Send reset code</Submit>
       </form>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted-foreground">
         <Link href="/sign-in" className="underline">
           Back to sign in
         </Link>

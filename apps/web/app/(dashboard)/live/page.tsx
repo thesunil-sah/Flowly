@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Radio } from "lucide-react";
 
+import { useActiveSite } from "@/components/layout/site-context";
 import { CurrentPages, LiveCounter, LiveFeed } from "@/components/live";
+import { PageSkeleton } from "@/components/skeletons";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useLiveTraffic } from "@/hooks/useLiveTraffic";
-import { useSites } from "@/hooks/useSites";
 
 // Keyed by siteId so switching sites remounts the hook with fresh state.
 function LiveView({ siteId }: { siteId: string }) {
@@ -22,48 +25,31 @@ function LiveView({ siteId }: { siteId: string }) {
 }
 
 export default function LivePage() {
-  const { data: sites, isLoading } = useSites();
-  const [selected, setSelected] = useState<string | null>(null);
+  const { activeSiteId, sites, isLoading } = useActiveSite();
 
   if (isLoading) {
-    return <main className="flex flex-1 items-center justify-center p-6">Loading…</main>;
+    return <PageSkeleton />;
   }
 
-  if (!sites || sites.length === 0) {
+  if (sites.length === 0 || !activeSiteId) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
-        <h1 className="text-2xl font-semibold">Live traffic</h1>
-        <p className="text-gray-600">No sites yet. Add one to start seeing live visitors.</p>
-        <Link href="/sites" className="rounded bg-black px-4 py-2 text-sm text-white">
-          Add a site
-        </Link>
-      </main>
+      <EmptyState
+        icon={Radio}
+        title="No sites yet"
+        description="Add a site and install the snippet to start seeing live visitors."
+        action={
+          <Button asChild>
+            <Link href="/sites">Add a site</Link>
+          </Button>
+        }
+      />
     );
   }
 
-  // Derive the active site (default to the first) instead of syncing via effect.
-  const activeSiteId = selected ?? sites[0].site_id;
-
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Live traffic</h1>
-        {sites.length > 1 && (
-          <select
-            value={activeSiteId}
-            onChange={(e) => setSelected(e.target.value)}
-            className="rounded border border-gray-300 px-3 py-2"
-          >
-            {sites.map((s) => (
-              <option key={s.id} value={s.site_id}>
-                {s.domain}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <h1 className="text-2xl font-semibold">Live traffic</h1>
       <LiveView key={activeSiteId} siteId={activeSiteId} />
-    </main>
+    </div>
   );
 }

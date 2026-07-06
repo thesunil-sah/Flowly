@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { PoweredByBadge } from "@/components/PoweredByBadge";
+import { SegmentedTabs } from "@/components/segmented-tabs";
 import {
   BreakdownTable,
   MetricCards,
@@ -47,32 +48,6 @@ function rangeForDays(days: number): StatsRange {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-function Tabs<T extends string>({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: { key: T; label: string }[];
-  active: T;
-  onChange: (key: T) => void;
-}) {
-  return (
-    <div className="flex gap-1">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={`rounded px-2 py-1 text-xs ${
-            active === t.key ? "bg-black text-white" : "text-gray-600 hover:bg-gray-100"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function PublicStatsView({ token, range }: { token: string; range: StatsRange }) {
   const [dimension, setDimension] = useState<AudienceDimension>("country");
   const [pageKind, setPageKind] = useState<PageKind>("top");
@@ -88,7 +63,7 @@ function PublicStatsView({ token, range }: { token: string; range: StatsRange })
       {overview.data ? (
         <MetricCards data={overview.data} />
       ) : (
-        <div className="rounded border border-gray-300 p-6 text-sm text-gray-400">
+        <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
           {overview.isError ? "Couldn't load metrics." : "Loading metrics…"}
         </div>
       )}
@@ -97,19 +72,19 @@ function PublicStatsView({ token, range }: { token: string; range: StatsRange })
 
       <div className="grid gap-4 lg:grid-cols-2">
         <BreakdownTable title="Sources" rows={sources.data?.sources ?? []} labelFallback="direct" />
-        <div className="rounded border border-gray-300 p-4">
+        <div className="rounded-lg border border-border bg-card p-4 shadow-card">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-600">Audience</h2>
-            <Tabs tabs={AUDIENCE_TABS} active={dimension} onChange={setDimension} />
+            <h2 className="text-sm font-semibold text-muted-foreground">Audience</h2>
+            <SegmentedTabs tabs={AUDIENCE_TABS} active={dimension} onChange={setDimension} />
           </div>
           <BreakdownTable title="" rows={audience.data?.rows ?? []} labelFallback="Unknown" />
         </div>
       </div>
 
-      <div className="rounded border border-gray-300 p-4">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-card">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-600">Pages</h2>
-          <Tabs tabs={PAGE_TABS} active={pageKind} onChange={setPageKind} />
+          <h2 className="text-sm font-semibold text-muted-foreground">Pages</h2>
+          <SegmentedTabs tabs={PAGE_TABS} active={pageKind} onChange={setPageKind} />
         </div>
         <PagesTable rows={pages.data?.rows ?? []} metric={pages.data?.metric ?? "pageviews"} />
       </div>
@@ -130,7 +105,7 @@ export default function SharePage() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
         <h1 className="text-2xl font-semibold">Dashboard not found</h1>
-        <p className="text-gray-600">This share link is invalid or has been revoked.</p>
+        <p className="text-muted-foreground">This share link is invalid or has been revoked.</p>
       </main>
     );
   }
@@ -139,10 +114,10 @@ export default function SharePage() {
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-gray-400">Shared dashboard</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Shared dashboard</p>
           <h1 className="text-2xl font-semibold">{meta.data?.domain ?? "…"}</h1>
         </div>
-        <Tabs
+        <SegmentedTabs
           tabs={PRESETS.map((p) => ({ key: p.key, label: p.label }))}
           active={PRESETS.find((p) => p.days === presetDays)!.key}
           onChange={(key) => setPresetDays(PRESETS.find((p) => p.key === key)!.days)}
