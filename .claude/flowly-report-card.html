@@ -1,0 +1,542 @@
+<style>
+  :root {
+    --paper: #f1f5f3;
+    --surface: #ffffff;
+    --ink: #16211e;
+    --muted: #596964;
+    --faint: #8b9994;
+    --accent: #0f766e;
+    --accent-2: #0b5c55;
+    --accent-soft: rgba(15, 118, 110, 0.10);
+    --amber: #a05c12;
+    --amber-soft: rgba(160, 92, 18, 0.12);
+    --rule: rgba(20, 40, 36, 0.13);
+    --rule-soft: rgba(20, 40, 36, 0.07);
+    --shadow: 0 1px 2px rgba(16, 33, 30, 0.05), 0 10px 30px -16px rgba(16, 33, 30, 0.22);
+
+    --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0d1512;
+      --surface: #15211d;
+      --ink: #e8efeb;
+      --muted: #9db0aa;
+      --faint: #6d817b;
+      --accent: #2dd4bf;
+      --accent-2: #5eead4;
+      --accent-soft: rgba(45, 212, 191, 0.13);
+      --amber: #dba441;
+      --amber-soft: rgba(219, 164, 65, 0.15);
+      --rule: rgba(200, 220, 214, 0.14);
+      --rule-soft: rgba(200, 220, 214, 0.07);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 34px -16px rgba(0, 0, 0, 0.66);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --paper: #f1f5f3;
+    --surface: #ffffff;
+    --ink: #16211e;
+    --muted: #596964;
+    --faint: #8b9994;
+    --accent: #0f766e;
+    --accent-2: #0b5c55;
+    --accent-soft: rgba(15, 118, 110, 0.10);
+    --amber: #a05c12;
+    --amber-soft: rgba(160, 92, 18, 0.12);
+    --rule: rgba(20, 40, 36, 0.13);
+    --rule-soft: rgba(20, 40, 36, 0.07);
+    --shadow: 0 1px 2px rgba(16, 33, 30, 0.05), 0 10px 30px -16px rgba(16, 33, 30, 0.22);
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0d1512;
+    --surface: #15211d;
+    --ink: #e8efeb;
+    --muted: #9db0aa;
+    --faint: #6d817b;
+    --accent: #2dd4bf;
+    --accent-2: #5eead4;
+    --accent-soft: rgba(45, 212, 191, 0.13);
+    --amber: #dba441;
+    --amber-soft: rgba(219, 164, 65, 0.15);
+    --rule: rgba(200, 220, 214, 0.14);
+    --rule-soft: rgba(200, 220, 214, 0.07);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 34px -16px rgba(0, 0, 0, 0.66);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 4vw, 2.5rem) 3rem;
+  }
+
+  /* --- Masthead --- */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.4rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.5rem;
+  }
+
+  .masthead h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2.4rem, 7vw, 3.9rem);
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .masthead h1 .mark { color: var(--accent); }
+
+  .lede {
+    color: var(--muted);
+    font-size: 1.02rem;
+    max-width: 60ch;
+    margin: 0.7rem 0 0;
+    text-wrap: pretty;
+  }
+
+  .issued {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    color: var(--faint);
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.1rem;
+  }
+  .issued b { color: var(--muted); font-weight: 600; }
+
+  /* --- Summary tiles --- */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 2.4rem;
+  }
+  @media (max-width: 620px) {
+    .summary { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .tile .figure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.9rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .tile .figure .sub { color: var(--faint); font-size: 1.05rem; }
+  .tile .label {
+    margin-top: 0.45rem;
+    font-size: 0.76rem;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* --- Section heading --- */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 1rem;
+  }
+  .section-head h2 {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+  .section-head .count {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    color: var(--faint);
+    letter-spacing: 0.04em;
+  }
+
+  /* --- Phase (course) rows --- */
+  .phases { display: flex; flex-direction: column; gap: 0.7rem; }
+
+  .phase {
+    display: grid;
+    grid-template-columns: 3.4rem 1fr auto;
+    gap: 0 1.15rem;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 1.05rem 1.2rem;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .phase:hover { transform: translateY(-2px); border-color: var(--accent); }
+
+  .phase .no {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.55rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    width: 3.4rem;
+    height: 2.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  .phase.deferred .no { color: var(--amber); background: var(--amber-soft); }
+
+  .phase .main { min-width: 0; }
+  .phase .name {
+    font-family: var(--font-display);
+    font-size: 1.12rem;
+    font-weight: 600;
+    margin: 0.1rem 0 0.2rem;
+    letter-spacing: 0.005em;
+    text-wrap: balance;
+  }
+  .phase .desc {
+    color: var(--muted);
+    font-size: 0.92rem;
+    margin: 0 0 0.6rem;
+    max-width: 66ch;
+    text-wrap: pretty;
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .chip {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.01em;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 0.16rem 0.55rem;
+    white-space: nowrap;
+  }
+
+  /* --- Status badge --- */
+  .status {
+    justify-self: end;
+    align-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    white-space: nowrap;
+  }
+  .status .dot {
+    width: 0.5rem; height: 0.5rem; border-radius: 50%;
+    background: var(--accent);
+  }
+  .status.def { color: var(--amber); background: var(--amber-soft); }
+  .status.def .dot { background: var(--amber); }
+
+  @media (max-width: 640px) {
+    .phase { grid-template-columns: 2.8rem 1fr; }
+    .phase .no { width: 2.8rem; font-size: 1.3rem; }
+    .status { grid-column: 1 / -1; justify-self: start; margin-top: 0.7rem; }
+  }
+
+  /* --- Footer --- */
+  .standing {
+    margin-top: 2.4rem;
+    padding: 1.25rem 1.4rem;
+    border-radius: 12px;
+    background: var(--accent-soft);
+    border: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem 1.5rem;
+  }
+  .standing .verdict {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .standing .verdict b { color: var(--accent-2); }
+  .standing .stack {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  .colophon {
+    margin-top: 1.5rem;
+    font-size: 0.76rem;
+    color: var(--faint);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .phase { transition: none; }
+  }
+</style>
+
+<div class="sheet">
+  <header class="masthead">
+    <p class="eyebrow">Build Transcript · Phases 0–9</p>
+    <h1><span class="mark">Flowly</span> Report Card</h1>
+    <p class="lede">
+      A privacy-first, cookieless web-analytics SaaS — live visitors plus historical reports,
+      no cookies and no consent banner. Ten phases shipped end to end; premium features held
+      back by design until paying users ask.
+    </p>
+    <div class="issued">
+      <span>Issued <b>2026-07-04</b></span>
+      <span>Stack <b>FastAPI · Next.js · ClickHouse · Postgres · Redis · Stripe</b></span>
+    </div>
+  </header>
+
+  <section class="summary" aria-label="At a glance">
+    <div class="tile">
+      <div class="figure">10<span class="sub">/10</span></div>
+      <div class="label">Phases shipped</div>
+    </div>
+    <div class="tile">
+      <div class="figure">206</div>
+      <div class="label">Backend tests green</div>
+    </div>
+    <div class="tile">
+      <div class="figure">3</div>
+      <div class="label">Apps · web · api · tracker</div>
+    </div>
+    <div class="tile">
+      <div class="figure">1</div>
+      <div class="label">Phase deferred by design</div>
+    </div>
+  </section>
+
+  <div class="section-head">
+    <h2>Course record</h2>
+    <span class="count">11 phases · 0–10</span>
+  </div>
+
+  <div class="phases">
+
+    <article class="phase">
+      <div class="no">00</div>
+      <div class="main">
+        <h3 class="name">Project setup &amp; first push</h3>
+        <p class="desc">Monorepo scaffold that installs, runs, lints clean, has one passing test, and lives on GitHub — the three app folders, backend deps via uv, and a Next.js frontend with a working <code>/health</code> route.</p>
+        <div class="chips">
+          <span class="chip">pnpm workspaces</span>
+          <span class="chip">uv</span>
+          <span class="chip">Next.js</span>
+          <span class="chip">/health</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">01</div>
+      <div class="main">
+        <h3 class="name">Database &amp; auth system</h3>
+        <p class="desc">Sign up, log in, reach a guarded dashboard. Postgres schema (accounts / sites / subscriptions) with Alembic, argon2 password hashing, short-lived JWT access + refresh, a <code>require_user</code> guard, login rate-limiting, plus Google/GitHub OAuth and email verification.</p>
+        <div class="chips">
+          <span class="chip">JWT + refresh</span>
+          <span class="chip">argon2</span>
+          <span class="chip">OAuth</span>
+          <span class="chip">Alembic</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">02</div>
+      <div class="main">
+        <h3 class="name">Tracking script</h3>
+        <p class="desc">A sub-2 KB vanilla-JS snippet that reads its <code>data-site</code>, fires a pageview via <code>sendBeacon</code> to <code>/collect</code>, follows SPA navigations, and can never throw or break the host page.</p>
+        <div class="chips">
+          <span class="chip">zero-dep vanilla JS</span>
+          <span class="chip">sendBeacon</span>
+          <span class="chip">SPA-aware</span>
+          <span class="chip">&lt; 2 KB</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">03</div>
+      <div class="main">
+        <h3 class="name">Ingestion pipeline</h3>
+        <p class="desc">Events validated, anonymised, and stored durably. <code>POST /collect</code> returns <code>202</code> in milliseconds; a cookieless visitor hash (IP + UA + daily salt), bot filtering, per-site rate limiting, a Redis Stream buffer, and a batch writer draining into ClickHouse with geo/device enrichment.</p>
+        <div class="chips">
+          <span class="chip">cookieless hash</span>
+          <span class="chip">Redis Streams</span>
+          <span class="chip">ClickHouse</span>
+          <span class="chip">bot filter</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">04</div>
+      <div class="main">
+        <h3 class="name">Real-time live traffic</h3>
+        <p class="desc">The headline feature: visitors on screen right now. A Redis presence ZSET + pub/sub feed behind an authed, ownership-checked <code>WS /live/{site_id}</code>, driving a live counter, event feed, and current-pages view.</p>
+        <div class="chips">
+          <span class="chip">WebSocket</span>
+          <span class="chip">Redis pub/sub</span>
+          <span class="chip">presence ZSET</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">05</div>
+      <div class="main">
+        <h3 class="name">Dashboard metrics</h3>
+        <p class="desc">The core historical reports — overview, time-series, sources + UTM, audience (geo / device / browser / OS), and top/entry/exit pages. Sessions, bounce, and duration derived in SQL; every query ownership-scoped; a Recharts UI with date presets and period comparison.</p>
+        <div class="chips">
+          <span class="chip">ClickHouse SQL</span>
+          <span class="chip">Recharts</span>
+          <span class="chip">ownership-scoped</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">06</div>
+      <div class="main">
+        <h3 class="name">Site onboarding</h3>
+        <p class="desc">Add a site and confirm it's connected. Minting a public <code>site_id</code> with a server-built install snippet, install verification that flips waiting → connected on the first event, and per-platform install guides.</p>
+        <div class="chips">
+          <span class="chip">install snippet</span>
+          <span class="chip">install verify</span>
+          <span class="chip">platform guides</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">07</div>
+      <div class="main">
+        <h3 class="name">Billing &amp; usage metering</h3>
+        <p class="desc">Trial converts to paid, metered by pageviews. Redis usage counters with a soft cap + upgrade nudge, Stripe Checkout (7-day trial pass-through) and Customer Portal, and signed, idempotent webhooks as the sole writer of entitlement.</p>
+        <div class="chips">
+          <span class="chip">Stripe</span>
+          <span class="chip">usage metering</span>
+          <span class="chip">idempotent webhooks</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">08</div>
+      <div class="main">
+        <h3 class="name">Growth &amp; retention</h3>
+        <p class="desc">The acquisition + retention loop. A weekly email digest, public revocable shareable dashboards, a free-tier "Powered by Flowly" badge, and an onboarding email sequence (welcome → install → live) — all behind a marketing opt-out gate with one-click unsubscribe.</p>
+        <div class="chips">
+          <span class="chip">weekly digest</span>
+          <span class="chip">share links</span>
+          <span class="chip">onboarding emails</span>
+          <span class="chip">free-tier badge</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase">
+      <div class="no">09</div>
+      <div class="main">
+        <h3 class="name">Privacy &amp; trust</h3>
+        <p class="desc">Deliver on the privacy promise, publicly. A per-plan retention deletion job (free 30d / pro 1y / business 2y), a CSV export endpoint that ships aggregated reports with no PII, and a cookieless privacy / GDPR page.</p>
+        <div class="chips">
+          <span class="chip">retention job</span>
+          <span class="chip">CSV export</span>
+          <span class="chip">privacy page</span>
+        </div>
+      </div>
+      <span class="status"><span class="dot"></span>Shipped</span>
+    </article>
+
+    <article class="phase deferred">
+      <div class="no">10</div>
+      <div class="main">
+        <h3 class="name">Premium — held for demand</h3>
+        <p class="desc">Deliberately unbuilt until paying users ask for it: custom events &amp; conversion goals, custom dashboards, segments &amp; cohorts, funnels &amp; path analysis, a public API, integrations, white-label, and team seats.</p>
+        <div class="chips">
+          <span class="chip">custom events</span>
+          <span class="chip">funnels</span>
+          <span class="chip">public API</span>
+          <span class="chip">team seats</span>
+        </div>
+      </div>
+      <span class="status def"><span class="dot"></span>Deferred</span>
+    </article>
+
+  </div>
+
+  <div class="standing">
+    <div class="verdict">Standing: <b>core product complete</b> — install → live → historical → paid → retained.</div>
+    <div class="stack">Phases 0–9 shipped · Phase 10 on demand</div>
+  </div>
+
+  <p class="colophon">
+    Flowly build transcript · privacy-first cookieless analytics · backend 206 tests passing,
+    web lint · typecheck · build green.
+  </p>
+</div>

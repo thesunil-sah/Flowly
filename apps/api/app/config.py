@@ -64,6 +64,15 @@ class Settings(BaseSettings):
     # (logs the code); production must set a real key + verified sender.
     email_api_key: str = ""  # EMAIL_API_KEY
     email_from: str = "Flowly <noreply@flowly.local>"  # EMAIL_FROM
+    # Inbox that public contact-form submissions are delivered to. Blank falls
+    # back to email_from (self-send). Set a real monitored address in prod.
+    contact_email: str = ""  # CONTACT_EMAIL
+
+    # --- Assistant / support chatbot (Phase F7) ---------------------------
+    # Anthropic API key for the support chatbot's AI fallback. Blank -> the bot
+    # still answers the hardcoded FAQ intents and otherwise points to contact
+    # (no API call). A small/cheap model (Haiku) handles unmatched questions.
+    anthropic_api_key: str = ""  # ANTHROPIC_API_KEY
 
     # --- Social OAuth -----------------------------------------------------
     # A provider is "enabled" only when both its id and secret are set.

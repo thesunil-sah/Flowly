@@ -45,6 +45,24 @@ def build_delete_query(site_id: str, cutoff: datetime) -> tuple[str, dict[str, A
     return sql, {"site_id": site_id, "cutoff": aware_cutoff}
 
 
+def build_delete_all_query(site_id: str) -> tuple[str, dict[str, Any]]:
+    """`ALTER TABLE ... DELETE` for ALL of one site's rows (site-scoped, §9).
+
+    Used by account deletion (Phase F3) to erase a site's analytics entirely —
+    no `ts` predicate, unlike the retention cutoff delete. Server-parameterized
+    (`{site_id:String}`), scoped by `site_id` so it can never touch another
+    account's data. The mutation is submitted async by ClickHouse.
+    """
+    sql = "ALTER TABLE events DELETE WHERE site_id = {site_id:String}"
+    return sql, {"site_id": site_id}
+
+
+async def delete_all_for_site(client: AsyncClient, site_id: str) -> None:
+    """Erase every event for one site (account-deletion path, Phase F3)."""
+    sql, params = build_delete_all_query(site_id)
+    await run_command(client, sql, params)
+
+
 async def delete_expired_for_site(
     client: AsyncClient, site_id: str, plan: str, now: datetime
 ) -> datetime:

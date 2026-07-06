@@ -25,6 +25,17 @@ _SEND_TIMEOUT_S = 10.0
 CODE_MESSAGES = {
     "verify": "Your Flowly verification code is {code}. It expires in 10 minutes.",
     "reset": "Your Flowly password-reset code is {code}. It expires in 10 minutes.",
+    "email_change": (
+        "Confirm your new Flowly email with code {code}. It expires in 10 minutes. "
+        "If you didn't request this, ignore this message."
+    ),
+}
+
+# Subject per code purpose; falls back to a generic line for any new purpose.
+CODE_SUBJECTS = {
+    "verify": "Verify your email",
+    "reset": "Reset your password",
+    "email_change": "Confirm your new email",
 }
 
 
@@ -64,6 +75,6 @@ async def send_email(to: str, subject: str, text: str, html: str | None = None) 
 
 
 async def send_code_email(to: str, code: str, purpose: str) -> None:
-    subject = "Verify your email" if purpose == "verify" else "Reset your password"
+    subject = CODE_SUBJECTS.get(purpose, "Your Flowly code")
     body = CODE_MESSAGES[purpose].format(code=code)
     await send_email(to, subject, body)

@@ -1,26 +1,402 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Flowly design tokens (F0). Single source of truth for every color in the
+ * app — components consume Tailwind utilities (bg-primary, text-success…),
+ * never raw hex. Green/red (success/destructive) are reserved for
+ * live/up/down/error semantics, never decoration.
+ */
+:root {
+  --background: #fafafa;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #111827;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #f3f4f6;
+  --accent-foreground: #111827;
+  --destructive: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #6366f1;
+  --chart-1: #6366f1;
+  --chart-2: #22d3ee;
+  --chart-3: #a78bfa;
+  --chart-4: #f472b6;
+  --chart-5: #fbbf24;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f4f6;
+  --sidebar-accent-foreground: #111827;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #6366f1;
+}
+
+.dark {
+  --background: #0b0f1a;
+  --foreground: #f9fafb;
+  --card: #111827;
+  --card-foreground: #f9fafb;
+  --popover: #111827;
+  --popover-foreground: #f9fafb;
+  --primary: #818cf8;
+  --primary-hover: #6366f1;
+  --primary-foreground: #1e1b4b;
+  --secondary: #1f2937;
+  --secondary-foreground: #f9fafb;
+  --muted: #1f2937;
+  --muted-foreground: #9ca3af;
+  --accent: #1f2937;
+  --accent-foreground: #f9fafb;
+  --destructive: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --border: #1f2937;
+  --input: #1f2937;
+  --ring: #818cf8;
+  --chart-1: #6366f1;
+  --chart-2: #22d3ee;
+  --chart-3: #a78bfa;
+  --chart-4: #f472b6;
+  --chart-5: #fbbf24;
+  --sidebar: #111827;
+  --sidebar-foreground: #f9fafb;
+  --sidebar-primary: #818cf8;
+  --sidebar-primary-foreground: #1e1b4b;
+  --sidebar-accent: #1f2937;
+  --sidebar-accent-foreground: #f9fafb;
+  --sidebar-border: #1f2937;
+  --sidebar-ring: #818cf8;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
-body {
-  background: var(--background);
+/* ============================================================
+ * F2 auth scene — exact visual match to desgin/demo-registersystem.png.
+ * The auth pages are a fixed dark-violet "cosmic" scene in BOTH themes
+ * (deliberate, reference-exact). All scene colors live HERE, scoped to
+ * .auth-scene: the block re-maps the F0 tokens so every token-based
+ * component inside (Button, Input, links) picks up the reference palette
+ * without a single raw hex in a component.
+ * ============================================================ */
+.auth-scene {
+  --background: #060213;
+  --foreground: #f4f1ff;
+  --card: rgb(22 14 46 / 0.55);
+  --card-foreground: #f4f1ff;
+  --popover: #140d2e;
+  --popover-foreground: #f4f1ff;
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: rgb(124 58 237 / 0.16);
+  --secondary-foreground: #f4f1ff;
+  --muted: rgb(12 7 32 / 0.6);
+  --muted-foreground: #a49ecb;
+  --accent: rgb(124 58 237 / 0.16);
+  --accent-foreground: #f4f1ff;
+  --border: rgb(167 139 250 / 0.18);
+  --input: rgb(167 139 250 / 0.16);
+  --ring: #a78bfa;
+
+  position: relative;
+  overflow: hidden;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(60rem 40rem at 110% -10%, rgb(124 58 237 / 0.28), transparent 60%),
+    radial-gradient(50rem 36rem at -15% 110%, rgb(109 40 217 / 0.22), transparent 60%),
+    radial-gradient(38rem 30rem at 50% 115%, rgb(147 51 234 / 0.14), transparent 65%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* --- component overrides inside the scene (reference proportions) --- */
+.auth-scene input:not([type="checkbox"]) {
+  height: 3rem;
+  border-radius: 0.75rem;
+  background-color: rgb(9 5 26 / 0.55);
+  font-size: 0.9rem;
+}
+.auth-scene input:not([type="checkbox"]):focus-visible {
+  border-color: rgb(167 139 250 / 0.6);
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.25);
+}
+.auth-scene input[type="checkbox"] {
+  accent-color: #8b5cf6;
+}
+.auth-scene button[type="submit"] {
+  height: 3rem;
+  border-radius: 0.75rem;
+  font-size: 0.95rem;
+  background-image: linear-gradient(90deg, #7c5cfc 0%, #a34ef8 100%);
+  box-shadow: 0 10px 32px rgb(139 92 246 / 0.38);
+  transition: box-shadow 0.25s ease, filter 0.25s ease, transform 0.15s ease;
+}
+.auth-scene button[type="submit"]:hover {
+  background-image: linear-gradient(90deg, #8b6cff 0%, #b45ffb 100%);
+  box-shadow: 0 12px 40px rgb(139 92 246 / 0.55);
+  filter: brightness(1.05);
+}
+.auth-scene [data-slot="button"][data-variant="outline"] {
+  height: 3rem;
+  border-radius: 0.75rem;
+  background-color: rgb(15 9 36 / 0.6);
+  border-color: rgb(167 139 250 / 0.16);
+}
+.auth-scene [data-slot="button"][data-variant="outline"]:hover {
+  background-color: rgb(30 19 62 / 0.7);
+}
+
+/* --- scene building blocks --- */
+.auth-card {
+  border-radius: 1.5rem;
+  border: 1px solid rgb(167 139 250 / 0.18);
+  background:
+    linear-gradient(160deg, rgb(38 24 76 / 0.5), rgb(14 8 34 / 0.55)) border-box,
+    rgb(18 11 40 / 0.45);
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 30px 80px rgb(2 0 12 / 0.6),
+    inset 0 1px 0 rgb(244 241 255 / 0.08);
+}
+.auth-tabs {
+  border-radius: 1rem;
+  border: 1px solid rgb(167 139 250 / 0.14);
+  background-color: rgb(9 5 26 / 0.55);
+}
+.auth-tab-active {
+  color: #ffffff;
+  background-image: linear-gradient(90deg, #7c5cfc 0%, #a34ef8 100%);
+  box-shadow: 0 6px 22px rgb(139 92 246 / 0.4);
+}
+.auth-badge {
+  border: 1px solid rgb(167 139 250 / 0.3);
+  background-color: rgb(124 58 237 / 0.14);
+  color: #c4b5fd;
+}
+.auth-gradient-text {
+  background-image: linear-gradient(90deg, #a78bfa 0%, #d8b4fe 60%, #c084fc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.auth-logo-mark {
+  background-image: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  box-shadow: 0 4px 18px rgb(139 92 246 / 0.5);
+}
+.auth-tile {
+  background-color: rgb(124 58 237 / 0.16);
+  border: 1px solid rgb(167 139 250 / 0.12);
+  color: #b7a4fd;
+}
+
+/* --- decorations (pure CSS approximations of the reference art) --- */
+.auth-stars,
+.auth-stars::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, rgb(244 241 255 / 0.8), transparent),
+    radial-gradient(1px 1px at 28% 64%, rgb(244 241 255 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 44% 8%, rgb(196 181 253 / 0.7), transparent),
+    radial-gradient(1px 1px at 61% 32%, rgb(244 241 255 / 0.45), transparent),
+    radial-gradient(2px 2px at 73% 12%, rgb(216 180 254 / 0.7), transparent),
+    radial-gradient(1px 1px at 84% 48%, rgb(244 241 255 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 92% 76%, rgb(196 181 253 / 0.6), transparent),
+    radial-gradient(1px 1px at 8% 82%, rgb(244 241 255 / 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 52% 88%, rgb(216 180 254 / 0.5), transparent);
+}
+.auth-stars::after {
+  transform: translate(28%, 14%) scale(1.4);
+  opacity: 0.6;
+}
+.auth-planet {
+  position: absolute;
+  right: -12rem;
+  top: 32%;
+  width: 42rem;
+  height: 42rem;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 25%, rgb(88 48 176 / 0.55), rgb(30 14 66 / 0.9) 55%, rgb(6 2 19 / 0.95) 75%);
+  box-shadow:
+    inset -40px -50px 120px rgb(2 0 12 / 0.9),
+    0 0 120px rgb(124 58 237 / 0.25);
+}
+/* Crops of the reference's own 3D art (public/auth/*.png). The crops carry an
+ * opaque near-black backdrop: `screen` blending lets only the glowing art add
+ * light, and a soft mask erases the rectangular crop edges. */
+.auth-art {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  mix-blend-mode: screen;
+}
+.auth-art--soft {
+  mask-image:
+    linear-gradient(to right, transparent, black 18%, black 82%, transparent),
+    linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
+  mask-composite: intersect;
+}
+/* Art centered in its crop (the gems) — radial fade kills the whole box. */
+.auth-art--orb {
+  mask-image: radial-gradient(closest-side, black 52%, transparent 84%);
+}
+/* Flush against the viewport's bottom-left corner — single radial anchored at
+ * the corner so the inner edges melt away (no multi-layer mask-composite). */
+.auth-art--corner {
+  mask-image: radial-gradient(130% 130% at 10% 95%, black 50%, transparent 72%);
+}
+.auth-glow {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(139 92 246 / 0.32), transparent);
+}
+.auth-sphere {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 32% 28%, #a78bfa, #5b21b6 60%, #2e1065 100%);
+  box-shadow: 0 0 30px rgb(139 92 246 / 0.5);
+}
+.auth-orbit {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid rgb(167 139 250 / 0.35);
+  border-radius: 50%;
+  transform: rotateX(68deg) rotateZ(-18deg);
+}
+/* --- motion: ambient floats/pulse/twinkle, disabled under prefers-reduced-motion --- */
+@media (prefers-reduced-motion: no-preference) {
+  .auth-float {
+    animation: auth-float 7s ease-in-out infinite;
+  }
+  .auth-float--slow {
+    animation-duration: 11s;
+    animation-delay: 1.2s;
+  }
+  .auth-float--rev {
+    animation-name: auth-float-rev;
+    animation-duration: 9s;
+  }
+  .auth-glow {
+    animation: auth-glow-pulse 6s ease-in-out infinite;
+  }
+  .auth-stars::after {
+    animation: auth-twinkle 8s ease-in-out infinite;
+  }
+}
+@keyframes auth-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -14px;
+  }
+}
+@keyframes auth-float-rev {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 12px;
+  }
+}
+@keyframes auth-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    scale: 1;
+  }
+  50% {
+    opacity: 1;
+    scale: 1.08;
+  }
+}
+@keyframes auth-twinkle {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.25;
+  }
 }

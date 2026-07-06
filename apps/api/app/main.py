@@ -9,7 +9,21 @@ from app.core.exceptions import register_exception_handlers
 from app.db.clickhouse import close_clickhouse
 from app.db.postgres import dispose_engine
 from app.db.redis import close_redis
-from app.routers import auth, billing, collect, email, health, live, oauth, public, sites, stats
+from app.routers import (
+    account,
+    assistant,
+    auth,
+    billing,
+    collect,
+    contact,
+    email,
+    health,
+    live,
+    oauth,
+    public,
+    sites,
+    stats,
+)
 
 
 @asynccontextmanager
@@ -39,6 +53,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(oauth.router)
+    # Authed self-service account settings (profile/password/email/delete), F3.
+    app.include_router(account.router)
     # Authed dashboard surfaces (live counter/feed), under the locked CORS above.
     app.include_router(live.router)
     # Authed site onboarding: add a site, get its snippet, verify the install.
@@ -52,6 +68,10 @@ def create_app() -> FastAPI:
     app.include_router(billing.router)
     # Public one-click unsubscribe (signed-token authed) for growth email (§8).
     app.include_router(email.router)
+    # Public contact form (honeypot + per-IP rate limit), transactional mail.
+    app.include_router(contact.router)
+    # Public support chatbot: hardcoded FAQ intents + rate-limited AI fallback.
+    app.include_router(assistant.router)
     # Public, open-CORS ingestion endpoint (its own ACAO:* header, set per
     # response — the global CORS middleware above stays locked to the dashboard).
     app.include_router(collect.router)
