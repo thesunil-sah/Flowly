@@ -7,7 +7,7 @@ All timestamps are timezone-aware UTC (CLAUDE.md §4).
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -145,6 +145,58 @@ class Subscription(Base):
     current_period_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
+
+
+class UptimeMonitor(Base):
+    """Current uptime state for one site — the pinger's cross-run memory (Phase 12).
+
+    One row per site (created lazily on first check). `fail_streak` is what powers
+    *retry-before-alarm*: an incident only opens once it crosses the configured
+    threshold, so a single blip never pages the owner. `status` gives the
+    dashboard a cheap read without scanning the incident ledger.
+    """
+
+    __tablename__ = "uptime_monitors"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    # 1:1 with a site; FK to the internal pk so a deleted site takes it along.
+    site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id"), unique=True, index=True)
+    # "up" | "down" | "unknown" (never checked yet).
+    status: Mapped[str] = mapped_column(String(16), default="unknown")
+    # Consecutive failed *checks* (each check already does an in-run retry).
+    fail_streak: Mapped[int] = mapped_column(Integer, default=0)
+    # HTTP status of the last completed response, if any (null on a transport
+    # failure — connect/DNS/timeout — where there was no response).
+    last_status_code: Mapped[int | None] = mapped_column(Integer, default=None)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    site: Mapped["Site"] = relationship()
+
+
+class UptimeIncident(Base):
+    """A single down period for a site (Phase 12).
+
+    The **open** incident (`resolved_at IS NULL`) is the alert-idempotency key:
+    while it exists, further failed pings never re-alert — the down email fires
+    once when it opens, the recovery email once when it resolves. Mirrors the
+    "a row IS the guard" idiom of `OnboardingEmail` / `ProcessedStripeEvent`.
+    """
+
+    __tablename__ = "uptime_incidents"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id"), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Why it went down: "timeout" | "connect" | "dns" | "http_5xx" | "blocked".
+    cause: Mapped[str] = mapped_column(String(32), default="")
+    # Whether the down / recovery email has been dispatched for this incident.
+    # Best-effort: a failed send leaves the flag false so the next run retries.
+    notified_down: Mapped[bool] = mapped_column(Boolean, default=False)
+    notified_up: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    site: Mapped["Site"] = relationship()
 
 
 class ProcessedStripeEvent(Base):

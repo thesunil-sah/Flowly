@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { apiFetch, type ShareLink, type Site, type SiteStatus } from "@/lib/api";
+import { apiFetch, type ShareLink, type Site, type SiteStatus, type UptimeStatus } from "@/lib/api";
 
 /** The authenticated account's sites (used to pick which view to show). */
 export function useSites() {
@@ -41,6 +41,15 @@ export function useSiteStatus(siteId: string | null, startedAt: number) {
       if (Date.now() - startedAt > STATUS_POLL_TIMEOUT_MS) return false; // give up auto-poll
       return STATUS_POLL_INTERVAL_MS;
     },
+  });
+}
+
+/** A site's current uptime status + recent incidents (Phase 12). */
+export function useSiteUptime(siteId: string | null) {
+  return useQuery({
+    queryKey: ["site-uptime", siteId],
+    queryFn: () => apiFetch<UptimeStatus>(`/sites/${encodeURIComponent(siteId!)}/uptime`),
+    enabled: !!siteId,
   });
 }
 

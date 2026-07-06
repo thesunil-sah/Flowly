@@ -21,9 +21,9 @@ from app.core.security import CurrentUser
 from app.db.clickhouse import ClickHouseDep
 from app.db.postgres import get_session
 from app.db.redis import get_redis
-from app.models.schemas import ShareLinkOut, SiteCreate, SiteOut, SiteStatus
+from app.models.schemas import ShareLinkOut, SiteCreate, SiteOut, SiteStatus, UptimeStatusOut
 from app.models.tables import Site
-from app.services import sharing, sites
+from app.services import sharing, sites, uptime
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
@@ -77,6 +77,12 @@ async def get_site_status(site: OwnedSite, redis: RedisDep, client: ClickHouseDe
     """Install verification: has the site received its first event yet?"""
     connected = await sites.first_event_seen(redis, client, site.site_id)
     return SiteStatus(connected=connected)
+
+
+@router.get("/{site_id}/uptime")
+async def get_site_uptime(site: OwnedSite, session: SessionDep) -> UptimeStatusOut:
+    """Current up/down status + recent incidents for the site (Phase 12)."""
+    return await uptime.get_status(session, site)
 
 
 @router.get("/{site_id}/share")

@@ -54,6 +54,21 @@ export type Site = {
 
 export type SiteStatus = { connected: boolean };
 
+// --- Uptime monitoring (Phase 12) ------------------------------------------
+export type UptimeIncident = {
+  started_at: string;
+  resolved_at: string | null; // null while ongoing
+  cause: string; // timeout | connect | dns | http_5xx | blocked
+  ongoing: boolean;
+};
+
+export type UptimeStatus = {
+  status: "up" | "down" | "unknown";
+  last_checked_at: string | null;
+  last_status_code: number | null;
+  incidents: UptimeIncident[];
+};
+
 // --- Billing (Phase 7) -----------------------------------------------------
 export type BillingTier = "pro" | "business";
 export type BillingInterval = "monthly" | "annual";
