@@ -18,10 +18,13 @@ def test_overview_binds_site_id_and_omits_it_from_sql() -> None:
     assert params["site_id"] == "secret-site"
     assert "secret-site" not in sql  # value is bound, not interpolated
     assert "{site_id:String}" in sql
-    # Range bounds bound as naive UTC datetimes.
-    assert params["from"] == datetime(2026, 7, 1)
-    assert params["to"] == datetime(2026, 7, 8)
-    assert params["from"].tzinfo is None
+    # Range bounds MUST bind tz-aware UTC: a naive param is parsed in the
+    # ClickHouse *server* timezone, shifting every window by the server's UTC
+    # offset (regression: the newest hour of events vanished on a BST server).
+    assert params["from"] == FROM
+    assert params["to"] == TO
+    assert params["from"].tzinfo is not None
+    assert params["to"].utcoffset().total_seconds() == 0
 
 
 def test_sessionized_cte_bakes_timeout_literal() -> None:

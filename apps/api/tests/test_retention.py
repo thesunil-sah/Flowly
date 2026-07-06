@@ -27,7 +27,10 @@ def test_build_delete_query_is_site_scoped_and_parameterized() -> None:
     assert "site_id = {site_id:String}" in sql
     assert "ts < {cutoff:DateTime}" in sql
     assert params["site_id"] == "pub0"
-    assert params["cutoff"].tzinfo is None  # naive UTC for clickhouse-connect
+    # tz-aware UTC: a naive param would be parsed in the ClickHouse *server*
+    # timezone, shifting the cutoff (see services/stats.py::_range_params).
+    assert params["cutoff"] == NOW - timedelta(days=30)
+    assert params["cutoff"].utcoffset().total_seconds() == 0
 
 
 class MockCH:
@@ -62,8 +65,8 @@ async def test_worker_deletes_per_site_with_plan_specific_cutoff(
     assert processed == 2
     by_site = {params["site_id"]: params["cutoff"] for _sql, params in ch.commands}
     # Each site got its own cutoff, derived from its owner's plan.
-    assert by_site["free-site"] == (NOW - timedelta(days=30)).replace(tzinfo=None)
-    assert by_site["pro-site"] == (NOW - timedelta(days=365)).replace(tzinfo=None)
+    assert by_site["free-site"] == NOW - timedelta(days=30)
+    assert by_site["pro-site"] == NOW - timedelta(days=365)
 
 
 async def test_worker_uses_free_window_for_lapsed_trial(session_factory, monkeypatch) -> None:
@@ -91,4 +94,4 @@ async def test_worker_uses_free_window_for_lapsed_trial(session_factory, monkeyp
 
     await retention_worker.run(NOW)
     _sql, params = ch.commands[0]
-    assert params["cutoff"] == (NOW - timedelta(days=30)).replace(tzinfo=None)
+    assert params["cutoff"] == NOW - timedelta(days=30)

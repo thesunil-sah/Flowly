@@ -103,15 +103,6 @@ sessionized AS (
 
 
 # --- Param helpers --------------------------------------------------------
-def _naive_utc(dt: datetime) -> datetime:
-    """Coerce to a naive UTC datetime for clickhouse-connect DateTime binding.
-
-    The events column is DateTime64('UTC'), so a naive value is interpreted as
-    UTC server-side — correct as long as we normalize to UTC here first.
-    """
-    return dt.astimezone(UTC).replace(tzinfo=None)
-
-
 def _aware_utc(dt: datetime) -> datetime:
     """Return a tz-aware UTC datetime, treating a naive value as already-UTC.
 
@@ -125,7 +116,12 @@ def _aware_utc(dt: datetime) -> datetime:
 
 
 def _range_params(site_id: str, from_: datetime, to: datetime) -> dict[str, Any]:
-    return {"site_id": site_id, "from": _naive_utc(from_), "to": _naive_utc(to)}
+    # Bind tz-AWARE UTC datetimes. A naive datetime is rendered as a bare
+    # string that ClickHouse parses in the *server* timezone, silently shifting
+    # the window by the server's UTC offset (e.g. -1h on a BST server: the
+    # newest hour of events vanishes from any "until now" query). An aware
+    # value survives binding as the same instant regardless of server tz.
+    return {"site_id": site_id, "from": _aware_utc(from_), "to": _aware_utc(to)}
 
 
 def _clamp_limit(limit: int) -> int:
