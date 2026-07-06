@@ -37,9 +37,12 @@ def build_delete_query(site_id: str, cutoff: datetime) -> tuple[str, dict[str, A
     so different sites in the same monthly partition have different cutoffs.
     """
     sql = "ALTER TABLE events DELETE WHERE site_id = {site_id:String} AND ts < {cutoff:DateTime}"
-    # clickhouse-connect binds a naive datetime as UTC (the column is DateTime('UTC')).
-    naive_cutoff = cutoff.astimezone(UTC).replace(tzinfo=None)
-    return sql, {"site_id": site_id, "cutoff": naive_cutoff}
+    # Bind a tz-AWARE UTC cutoff: a naive datetime is rendered as a bare string
+    # that ClickHouse parses in the *server* timezone, shifting the cutoff by
+    # the server's UTC offset (same bug as the stats windows — see
+    # services/stats.py::_range_params).
+    aware_cutoff = cutoff.replace(tzinfo=UTC) if cutoff.tzinfo is None else cutoff.astimezone(UTC)
+    return sql, {"site_id": site_id, "cutoff": aware_cutoff}
 
 
 async def delete_expired_for_site(
