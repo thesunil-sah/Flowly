@@ -2,6 +2,6 @@
 // mobile sheet (client). Anchors live on the landing page.
 export const MARKETING_LINKS = [
   { title: "Features", href: "/#features" },
-  { title: "Pricing", href: "/#pricing" },
+  { title: "Pricing", href: "/pricing" },
   { title: "Live demo", href: "/#demo" },
 ] as const;

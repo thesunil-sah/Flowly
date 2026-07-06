@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { toast } from "sonner";
 
-import { ErrorText, Field, Submit } from "@/components/form";
+import { Field, FormError, SubmitButton } from "@/components/auth/fields";
 import { InstallGuide, StatusPill } from "@/components/install";
 import { TableSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,15 @@ function AddStep({ onCreated }: { onCreated: (site: Site) => void }) {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    create.mutate({ domain }, { onSuccess: onCreated });
+    create.mutate(
+      { domain },
+      {
+        onSuccess: (site) => {
+          toast.success("Site added");
+          onCreated(site);
+        },
+      },
+    );
   }
 
   return (
@@ -92,6 +101,7 @@ function AddStep({ onCreated }: { onCreated: (site: Site) => void }) {
       </div>
       <form onSubmit={onSubmit} className="flex max-w-sm flex-col gap-4">
         <Field
+          id="domain"
           label="Domain"
           placeholder="example.com"
           required
@@ -100,8 +110,8 @@ function AddStep({ onCreated }: { onCreated: (site: Site) => void }) {
           onChange={(e) => setDomain(e.target.value)}
           autoComplete="off"
         />
-        {create.isError ? <ErrorText>{create.error.message}</ErrorText> : null}
-        <Submit pending={create.isPending}>Add site</Submit>
+        {create.isError ? <FormError>{create.error.message}</FormError> : null}
+        <SubmitButton pending={create.isPending}>Add site</SubmitButton>
       </form>
     </div>
   );

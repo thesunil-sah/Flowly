@@ -16,6 +16,7 @@ import {
   Network,
   Radio,
   Search,
+  Settings,
   Share2,
   Smartphone,
   Sparkles,
@@ -45,26 +46,26 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Behavior",
     items: [
-      { title: "Pages", href: "/behavior/pages", icon: FileText, ready: false },
-      { title: "Entry pages", href: "/behavior/entry", icon: ArrowDownRight, ready: false },
-      { title: "Exit pages", href: "/behavior/exit", icon: ArrowUpRight, ready: false },
+      { title: "Pages", href: "/behavior/pages", icon: FileText, ready: true },
+      { title: "Entry pages", href: "/behavior/entry", icon: ArrowDownRight, ready: true },
+      { title: "Exit pages", href: "/behavior/exit", icon: ArrowUpRight, ready: true },
     ],
   },
   {
     title: "Acquisitions",
     items: [
       { title: "Channels", href: "/acquisitions/channels", icon: Network, ready: false },
-      { title: "Referrers", href: "/acquisitions/referrers", icon: Link2, ready: false },
+      { title: "Referrers", href: "/acquisitions/referrers", icon: Link2, ready: true },
       { title: "Search", href: "/acquisitions/search", icon: Search, ready: false },
       { title: "Social", href: "/acquisitions/social", icon: Share2, ready: false },
       { title: "AI platforms", href: "/acquisitions/ai", icon: Sparkles, ready: false },
-      { title: "Campaigns", href: "/acquisitions/campaigns", icon: Megaphone, ready: false },
+      { title: "Campaigns", href: "/acquisitions/campaigns", icon: Megaphone, ready: true },
     ],
   },
   {
     title: "Geographic",
     items: [
-      { title: "Countries", href: "/geo/countries", icon: Globe, ready: false },
+      { title: "Countries", href: "/geo/countries", icon: Globe, ready: true },
       { title: "Cities", href: "/geo/cities", icon: MapPin, ready: false },
       { title: "Languages", href: "/geo/languages", icon: Languages, ready: false },
     ],
@@ -72,10 +73,10 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Technology",
     items: [
-      { title: "Browsers", href: "/tech/browsers", icon: AppWindow, ready: false },
-      { title: "OS", href: "/tech/os", icon: Cpu, ready: false },
+      { title: "Browsers", href: "/tech/browsers", icon: AppWindow, ready: true },
+      { title: "OS", href: "/tech/os", icon: Cpu, ready: true },
       { title: "Screens", href: "/tech/screens", icon: Monitor, ready: false },
-      { title: "Devices", href: "/tech/devices", icon: Smartphone, ready: false },
+      { title: "Devices", href: "/tech/devices", icon: Smartphone, ready: true },
     ],
   },
   {
@@ -83,6 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { title: "Sites", href: "/sites", icon: LayoutGrid, ready: true },
       { title: "Billing", href: "/billing", icon: CreditCard, ready: true },
+      { title: "Settings", href: "/settings", icon: Settings, ready: true },
     ],
   },
 ];

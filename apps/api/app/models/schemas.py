@@ -5,10 +5,13 @@ so every entry point stores and looks up the same form.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
+
+if TYPE_CHECKING:
+    from app.models.tables import Account, Identity
 
 # Password floor 8; 128 cap keeps argon2 input bounded (hashing-DoS guard).
 _Password = Field(min_length=8, max_length=128)
@@ -98,6 +101,78 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+# --- Contact (Phase F6) ---------------------------------------------------
+class ContactRequest(BaseModel):
+    """Public contact-form submission. `company` is a honeypot — a field hidden
+    from real users; a non-empty value marks a bot and the message is dropped."""
+
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    message: str = Field(min_length=1, max_length=5000)
+    company: str = Field(default="", max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        return _normalize_email(v)
+
+
+# --- Account settings (Phase F3) ------------------------------------------
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = _Password
+
+
+class ChangeEmailRequest(BaseModel):
+    """Step 1 of an email change: confirm identity, target the new address.
+
+    `password` re-authenticates the change; it is unused (and may be omitted)
+    for OAuth-only accounts that have no password_hash.
+    """
+
+    new_email: EmailStr
+    password: str | None = Field(default=None, max_length=128)
+
+    @field_validator("new_email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        return _normalize_email(v)
+
+
+class VerifyEmailChangeRequest(BaseModel):
+    """Step 2: prove control of the new address with the emailed code."""
+
+    new_email: EmailStr
+    code: str = _Code
+
+    @field_validator("new_email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        return _normalize_email(v)
+
+
+class EmailPreferencesRequest(BaseModel):
+    email_opt_out: bool
+
+
+# --- Assistant / support chatbot (Phase F7) -------------------------------
+class AssistantChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=1000)
+
+
+class AssistantReply(BaseModel):
+    reply: str
+    # Where the answer came from: a matched FAQ intent, the AI fallback, or the
+    # canned contact fallback (unmatched + no AI available).
+    source: Literal["faq", "ai", "fallback"]
+
+
+class DeleteAccountRequest(BaseModel):
+    """Password re-auth for the irreversible delete; optional for OAuth-only."""
+
+    password: str | None = Field(default=None, max_length=128)
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -116,7 +191,12 @@ class ResetTokenResponse(BaseModel):
 
 
 class AccountOut(BaseModel):
-    """Public account shape — never exposes password_hash."""
+    """Public account shape — never exposes password_hash.
+
+    `has_password` (derived, not a column) lets the settings UI decide whether to
+    offer the change-password form; OAuth-only accounts have no password to change.
+    Built via `from_account` so that derived field is always populated.
+    """
 
     id: UUID
     username: str
@@ -125,8 +205,36 @@ class AccountOut(BaseModel):
     status: str
     email_verified_at: datetime | None
     trial_ends_at: datetime | None
+    email_opt_out: bool
+    has_password: bool
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_account(cls, account: "Account") -> "AccountOut":
+        return cls(
+            id=account.id,
+            username=account.username,
+            email=account.email,
+            plan=account.plan,
+            status=account.status,
+            email_verified_at=account.email_verified_at,
+            trial_ends_at=account.trial_ends_at,
+            email_opt_out=account.email_opt_out,
+            has_password=account.password_hash is not None,
+        )
+
+
+class IdentityOut(BaseModel):
+    """A linked social login shown in settings (no provider_user_id exposed)."""
+
+    id: UUID
+    provider: str
+    created_at: datetime
+
+    @classmethod
+    def from_identity(cls, identity: "Identity") -> "IdentityOut":
+        return cls(id=identity.id, provider=identity.provider, created_at=identity.created_at)
 
 
 class SiteOut(BaseModel):

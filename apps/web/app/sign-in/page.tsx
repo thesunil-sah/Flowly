@@ -1,12 +1,15 @@
 "use client";
 
+import { Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 
-import { AuthShell, ErrorText, Field, Submit } from "@/components/form";
+import { AuthCard, AuthLayout } from "@/components/auth/auth-shell";
+import { Field, FormError, PasswordField, SubmitButton, SuccessNote } from "@/components/auth/fields";
 import { SocialButtons } from "@/components/SocialButtons";
 import { useLogin } from "@/hooks/useAuth";
+import { postAuthPath } from "@/lib/post-auth";
 
 function SignIn() {
   const router = useRouter();
@@ -22,58 +25,67 @@ function SignIn() {
     e.preventDefault();
     login.mutate(
       { identifier, password, remember },
-      { onSuccess: () => router.push("/dashboard") },
+      { onSuccess: async () => router.push(await postAuthPath()) },
     );
   }
 
   return (
-    <AuthShell title="Sign in">
-      {justVerified ? (
-        <p className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm">
-          Email verified — please sign in.
-        </p>
-      ) : null}
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Field
-          label="Email or username"
-          required
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          autoComplete="username"
-        />
-        <Field
-          label="Password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <label className="flex items-center gap-2">
+    <AuthLayout>
+      <AuthCard
+        tab="sign-in"
+        title="Welcome back"
+        subtitle="Sign in to continue to your account"
+        footer={
+          <>
+            Don&apos;t have an account?{" "}
+            <Link href="/sign-up" className="font-medium text-primary hover:underline">
+              Sign up
+            </Link>
+          </>
+        }
+      >
+        {justVerified ? <SuccessNote>Email verified — please sign in.</SuccessNote> : null}
+        <form onSubmit={onSubmit} className="space-y-4">
+          <Field
+            id="identifier"
+            label="Email or username"
+            icon={Mail}
+            placeholder="you@example.com"
+            required
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            autoComplete="username"
+          />
+          <PasswordField
+            id="password"
+            label="Password"
+            placeholder="••••••••••••"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            labelEnd={
+              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                Forgot password?
+              </Link>
+            }
+          />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
+              className="size-4 rounded accent-primary"
             />
             Remember me
           </label>
-          <Link href="/forgot-password" className="underline">
-            Forgot password?
-          </Link>
-        </div>
 
-        {login.isError ? <ErrorText>{login.error.message}</ErrorText> : null}
-        <Submit pending={login.isPending}>Sign in</Submit>
-      </form>
-      <SocialButtons />
-      <p className="text-sm text-muted-foreground">
-        Need an account?{" "}
-        <Link href="/sign-up" className="underline">
-          Sign up
-        </Link>
-      </p>
-    </AuthShell>
+          {login.isError ? <FormError>{login.error.message}</FormError> : null}
+          <SubmitButton pending={login.isPending}>Sign in</SubmitButton>
+        </form>
+        <SocialButtons />
+      </AuthCard>
+    </AuthLayout>
   );
 }
 

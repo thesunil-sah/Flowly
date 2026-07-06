@@ -86,6 +86,11 @@ async def cache_site_account(redis: Redis, site_id: str, account_id: UUID) -> No
     await redis.set(_site_account_key(site_id), str(account_id))
 
 
+async def uncache_site_account(redis: Redis, site_id: str) -> None:
+    """Drop a site's cached `site:{site_id} -> account_id` map (site deletion)."""
+    await redis.delete(_site_account_key(site_id))
+
+
 async def meter_pageview(redis: Redis, site_id: str, now: datetime) -> None:
     """Count one counted pageview toward its account's monthly usage (hot path).
 

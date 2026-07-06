@@ -1,5 +1,6 @@
 "use client";
 
+import { LiveDot } from "@/components/reports/live-dot";
 import type { FeedRow, PageCount } from "@/hooks/useLiveTraffic";
 import { formatTime } from "@/lib/format";
 
@@ -7,10 +8,11 @@ export function LiveCounter({ count, connected }: { count: number; connected: bo
   return (
     <div className="rounded-lg border border-border bg-card p-6 shadow-card">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span
-          className={`inline-block h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-muted-foreground/40"}`}
-          aria-hidden
-        />
+        {connected ? (
+          <LiveDot />
+        ) : (
+          <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/40" aria-hidden />
+        )}
         {connected ? "Live" : "Connecting…"}
       </div>
       <div className="mt-2 text-5xl font-semibold tabular-nums">{count}</div>
@@ -28,7 +30,10 @@ export function LiveFeed({ feed }: { feed: FeedRow[] }) {
       ) : (
         <ul className="space-y-1 text-sm">
           {feed.map((e) => (
-            <li key={e.key} className="flex justify-between gap-3">
+            <li
+              key={e.key}
+              className="flex justify-between gap-3 duration-300 animate-in fade-in slide-in-from-top-2 motion-reduce:animate-none"
+            >
               <span className="truncate font-mono">{e.path}</span>
               <span className="shrink-0 text-muted-foreground">
                 {[e.country, e.device, e.browser, e.source].filter(Boolean).join(" · ")}

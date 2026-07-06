@@ -106,4 +106,4 @@ async def logout() -> Response:
 
 @router.get("/me")
 async def me(account: CurrentUser) -> AccountOut:
-    return AccountOut.model_validate(account)
+    return AccountOut.from_account(account)

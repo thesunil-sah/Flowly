@@ -144,3 +144,259 @@
     @apply font-sans;
   }
 }
+
+/* ============================================================
+ * F2 auth scene — exact visual match to desgin/demo-registersystem.png.
+ * The auth pages are a fixed dark-violet "cosmic" scene in BOTH themes
+ * (deliberate, reference-exact). All scene colors live HERE, scoped to
+ * .auth-scene: the block re-maps the F0 tokens so every token-based
+ * component inside (Button, Input, links) picks up the reference palette
+ * without a single raw hex in a component.
+ * ============================================================ */
+.auth-scene {
+  --background: #060213;
+  --foreground: #f4f1ff;
+  --card: rgb(22 14 46 / 0.55);
+  --card-foreground: #f4f1ff;
+  --popover: #140d2e;
+  --popover-foreground: #f4f1ff;
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: rgb(124 58 237 / 0.16);
+  --secondary-foreground: #f4f1ff;
+  --muted: rgb(12 7 32 / 0.6);
+  --muted-foreground: #a49ecb;
+  --accent: rgb(124 58 237 / 0.16);
+  --accent-foreground: #f4f1ff;
+  --border: rgb(167 139 250 / 0.18);
+  --input: rgb(167 139 250 / 0.16);
+  --ring: #a78bfa;
+
+  position: relative;
+  overflow: hidden;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(60rem 40rem at 110% -10%, rgb(124 58 237 / 0.28), transparent 60%),
+    radial-gradient(50rem 36rem at -15% 110%, rgb(109 40 217 / 0.22), transparent 60%),
+    radial-gradient(38rem 30rem at 50% 115%, rgb(147 51 234 / 0.14), transparent 65%);
+  color: var(--foreground);
+}
+
+/* --- component overrides inside the scene (reference proportions) --- */
+.auth-scene input:not([type="checkbox"]) {
+  height: 3rem;
+  border-radius: 0.75rem;
+  background-color: rgb(9 5 26 / 0.55);
+  font-size: 0.9rem;
+}
+.auth-scene input:not([type="checkbox"]):focus-visible {
+  border-color: rgb(167 139 250 / 0.6);
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.25);
+}
+.auth-scene input[type="checkbox"] {
+  accent-color: #8b5cf6;
+}
+.auth-scene button[type="submit"] {
+  height: 3rem;
+  border-radius: 0.75rem;
+  font-size: 0.95rem;
+  background-image: linear-gradient(90deg, #7c5cfc 0%, #a34ef8 100%);
+  box-shadow: 0 10px 32px rgb(139 92 246 / 0.38);
+  transition: box-shadow 0.25s ease, filter 0.25s ease, transform 0.15s ease;
+}
+.auth-scene button[type="submit"]:hover {
+  background-image: linear-gradient(90deg, #8b6cff 0%, #b45ffb 100%);
+  box-shadow: 0 12px 40px rgb(139 92 246 / 0.55);
+  filter: brightness(1.05);
+}
+.auth-scene [data-slot="button"][data-variant="outline"] {
+  height: 3rem;
+  border-radius: 0.75rem;
+  background-color: rgb(15 9 36 / 0.6);
+  border-color: rgb(167 139 250 / 0.16);
+}
+.auth-scene [data-slot="button"][data-variant="outline"]:hover {
+  background-color: rgb(30 19 62 / 0.7);
+}
+
+/* --- scene building blocks --- */
+.auth-card {
+  border-radius: 1.5rem;
+  border: 1px solid rgb(167 139 250 / 0.18);
+  background:
+    linear-gradient(160deg, rgb(38 24 76 / 0.5), rgb(14 8 34 / 0.55)) border-box,
+    rgb(18 11 40 / 0.45);
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 30px 80px rgb(2 0 12 / 0.6),
+    inset 0 1px 0 rgb(244 241 255 / 0.08);
+}
+.auth-tabs {
+  border-radius: 1rem;
+  border: 1px solid rgb(167 139 250 / 0.14);
+  background-color: rgb(9 5 26 / 0.55);
+}
+.auth-tab-active {
+  color: #ffffff;
+  background-image: linear-gradient(90deg, #7c5cfc 0%, #a34ef8 100%);
+  box-shadow: 0 6px 22px rgb(139 92 246 / 0.4);
+}
+.auth-badge {
+  border: 1px solid rgb(167 139 250 / 0.3);
+  background-color: rgb(124 58 237 / 0.14);
+  color: #c4b5fd;
+}
+.auth-gradient-text {
+  background-image: linear-gradient(90deg, #a78bfa 0%, #d8b4fe 60%, #c084fc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.auth-logo-mark {
+  background-image: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  box-shadow: 0 4px 18px rgb(139 92 246 / 0.5);
+}
+.auth-tile {
+  background-color: rgb(124 58 237 / 0.16);
+  border: 1px solid rgb(167 139 250 / 0.12);
+  color: #b7a4fd;
+}
+
+/* --- decorations (pure CSS approximations of the reference art) --- */
+.auth-stars,
+.auth-stars::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, rgb(244 241 255 / 0.8), transparent),
+    radial-gradient(1px 1px at 28% 64%, rgb(244 241 255 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 44% 8%, rgb(196 181 253 / 0.7), transparent),
+    radial-gradient(1px 1px at 61% 32%, rgb(244 241 255 / 0.45), transparent),
+    radial-gradient(2px 2px at 73% 12%, rgb(216 180 254 / 0.7), transparent),
+    radial-gradient(1px 1px at 84% 48%, rgb(244 241 255 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 92% 76%, rgb(196 181 253 / 0.6), transparent),
+    radial-gradient(1px 1px at 8% 82%, rgb(244 241 255 / 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 52% 88%, rgb(216 180 254 / 0.5), transparent);
+}
+.auth-stars::after {
+  transform: translate(28%, 14%) scale(1.4);
+  opacity: 0.6;
+}
+.auth-planet {
+  position: absolute;
+  right: -12rem;
+  top: 32%;
+  width: 42rem;
+  height: 42rem;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 25%, rgb(88 48 176 / 0.55), rgb(30 14 66 / 0.9) 55%, rgb(6 2 19 / 0.95) 75%);
+  box-shadow:
+    inset -40px -50px 120px rgb(2 0 12 / 0.9),
+    0 0 120px rgb(124 58 237 / 0.25);
+}
+/* Crops of the reference's own 3D art (public/auth/*.png). The crops carry an
+ * opaque near-black backdrop: `screen` blending lets only the glowing art add
+ * light, and a soft mask erases the rectangular crop edges. */
+.auth-art {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  mix-blend-mode: screen;
+}
+.auth-art--soft {
+  mask-image:
+    linear-gradient(to right, transparent, black 18%, black 82%, transparent),
+    linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
+  mask-composite: intersect;
+}
+/* Art centered in its crop (the gems) — radial fade kills the whole box. */
+.auth-art--orb {
+  mask-image: radial-gradient(closest-side, black 52%, transparent 84%);
+}
+/* Flush against the viewport's bottom-left corner — single radial anchored at
+ * the corner so the inner edges melt away (no multi-layer mask-composite). */
+.auth-art--corner {
+  mask-image: radial-gradient(130% 130% at 10% 95%, black 50%, transparent 72%);
+}
+.auth-glow {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(139 92 246 / 0.32), transparent);
+}
+.auth-sphere {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 32% 28%, #a78bfa, #5b21b6 60%, #2e1065 100%);
+  box-shadow: 0 0 30px rgb(139 92 246 / 0.5);
+}
+.auth-orbit {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid rgb(167 139 250 / 0.35);
+  border-radius: 50%;
+  transform: rotateX(68deg) rotateZ(-18deg);
+}
+/* --- motion: ambient floats/pulse/twinkle, disabled under prefers-reduced-motion --- */
+@media (prefers-reduced-motion: no-preference) {
+  .auth-float {
+    animation: auth-float 7s ease-in-out infinite;
+  }
+  .auth-float--slow {
+    animation-duration: 11s;
+    animation-delay: 1.2s;
+  }
+  .auth-float--rev {
+    animation-name: auth-float-rev;
+    animation-duration: 9s;
+  }
+  .auth-glow {
+    animation: auth-glow-pulse 6s ease-in-out infinite;
+  }
+  .auth-stars::after {
+    animation: auth-twinkle 8s ease-in-out infinite;
+  }
+}
+@keyframes auth-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -14px;
+  }
+}
+@keyframes auth-float-rev {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 12px;
+  }
+}
+@keyframes auth-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    scale: 1;
+  }
+  50% {
+    opacity: 1;
+    scale: 1.08;
+  }
+}
+@keyframes auth-twinkle {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}

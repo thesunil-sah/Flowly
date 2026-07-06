@@ -1,7 +1,7 @@
 "use client";
 
-import { animate, motion, useInView, useReducedMotion } from "motion/react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { animate, motion, useInView } from "motion/react";
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 
 import { formatNumber } from "@/lib/format";
 
@@ -12,6 +12,27 @@ import { formatNumber } from "@/lib/format";
 // sections pass through the client boundary without becoming client code.
 
 const EASE = [0.25, 0.1, 0.25, 1] as const;
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onChange: () => void) {
+  const mql = window.matchMedia(REDUCED_MOTION_QUERY);
+  mql.addEventListener("change", onChange);
+  return () => mql.removeEventListener("change", onChange);
+}
+
+// motion's useReducedMotion reads matchMedia on the first client render, so
+// with the OS preference on it disagrees with the SSR HTML and the
+// `reduced ? <div> : <motion.div>` branch hydration-mismatches (and shifts
+// every downstream useId). useSyncExternalStore's server snapshot keeps the
+// hydration render identical to SSR; the real value applies right after.
+function useReducedMotion(): boolean {
+  return useSyncExternalStore(
+    subscribeReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false,
+  );
+}
 
 /** Scroll-reveal once: fade + 16px rise when the element enters the viewport. */
 export function Reveal({

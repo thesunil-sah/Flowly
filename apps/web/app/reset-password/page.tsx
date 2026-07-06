@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
 
-import { AuthShell, ErrorText, Field, Submit } from "@/components/form";
+import { AuthCard, AuthLayout } from "@/components/auth/auth-shell";
+import { FormError, PasswordField, SubmitButton } from "@/components/auth/fields";
 import { useResetPassword } from "@/hooks/useAuth";
 import { RESET_TOKEN_KEY } from "@/lib/constants";
 
@@ -48,45 +49,51 @@ export default function ResetPasswordPage() {
 
   if (token === null) {
     return (
-      <AuthShell title="Reset password">
-        <p className="text-sm text-muted-foreground">
-          No active reset request.{" "}
-          <Link href="/forgot-password" className="underline">
-            Start over
-          </Link>
-          .
-        </p>
-      </AuthShell>
+      <AuthLayout>
+        <AuthCard title="Reset password">
+          <p className="text-sm text-muted-foreground">
+            No active reset request.{" "}
+            <Link href="/forgot-password" className="font-medium text-primary hover:underline">
+              Start over
+            </Link>
+            .
+          </p>
+        </AuthCard>
+      </AuthLayout>
     );
   }
 
   return (
-    <AuthShell title="Set a new password">
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Field
-          label="New password"
-          type="password"
-          required
-          minLength={8}
-          maxLength={128}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="new-password"
-        />
-        <Field
-          label="Confirm new password"
-          type="password"
-          required
-          minLength={8}
-          maxLength={128}
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          autoComplete="new-password"
-        />
-        {mismatch ? <ErrorText>Passwords do not match.</ErrorText> : null}
-        {reset.isError ? <ErrorText>{reset.error.message}</ErrorText> : null}
-        <Submit pending={reset.isPending}>Reset password</Submit>
-      </form>
-    </AuthShell>
+    <AuthLayout>
+      <AuthCard title="Set a new password" subtitle="Choose a strong password you haven't used before.">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <PasswordField
+            id="password"
+            label="New password"
+            placeholder="8+ characters"
+            required
+            minLength={8}
+            maxLength={128}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          <PasswordField
+            id="confirm"
+            label="Confirm new password"
+            placeholder="Repeat your password"
+            required
+            minLength={8}
+            maxLength={128}
+            error={mismatch ? "Passwords do not match." : null}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoComplete="new-password"
+          />
+          {reset.isError ? <FormError>{reset.error.message}</FormError> : null}
+          <SubmitButton pending={reset.isPending}>Reset password</SubmitButton>
+        </form>
+      </AuthCard>
+    </AuthLayout>
   );
 }

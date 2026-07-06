@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Menu, UserRound } from "lucide-react";
+import { LogOut, Menu, Settings, UserRound } from "lucide-react";
 import { useState } from "react";
 
 import { SidebarNav } from "@/components/layout/app-sidebar";
@@ -40,6 +41,12 @@ function UserMenu() {
             <DropdownMenuSeparator />
           </>
         )}
+        <DropdownMenuItem asChild>
+          <Link href="/settings">
+            <Settings className="size-4" />
+            Settings
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={async () => {
             await logout();

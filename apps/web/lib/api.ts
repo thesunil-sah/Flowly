@@ -28,6 +28,16 @@ export type Account = {
   status: string;
   email_verified_at: string | null;
   trial_ends_at: string | null;
+  email_opt_out: boolean;
+  // Derived server-side: false for OAuth-only accounts (no password to change).
+  has_password: boolean;
+};
+
+/** A linked social login shown in settings (Phase F3). */
+export type Identity = {
+  id: string;
+  provider: string;
+  created_at: string;
 };
 
 export type MessageResponse = {
@@ -53,7 +63,10 @@ export type UsageSummary = {
   quota: number;
   used: number;
   pct: number;
-  status: "ok" | "warning" | "over";
+  // "locked" is the Phase 14 free-over-limit state (dashboard paywall + 402
+  // gating). The current backend only emits ok|warning|over; the F5 UI renders
+  // the locked branch already so Phase 14 is a backend-only flip.
+  status: "ok" | "warning" | "over" | "locked";
 };
 
 export type CheckoutResponse = { url: string };
