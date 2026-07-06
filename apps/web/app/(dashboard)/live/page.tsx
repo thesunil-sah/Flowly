@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Radio } from "lucide-react";
 
 import { useActiveSite } from "@/components/layout/site-context";
-import { CurrentPages, LiveCounter, LiveFeed } from "@/components/live";
+import { CurrentPages, LiveCounter, LiveCountries, LiveFeed } from "@/components/live";
 import { PageSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,13 +12,14 @@ import { useLiveTraffic } from "@/hooks/useLiveTraffic";
 
 // Keyed by siteId so switching sites remounts the hook with fresh state.
 function LiveView({ siteId }: { siteId: string }) {
-  const { count, feed, currentPages, connected } = useLiveTraffic(siteId);
+  const { count, feed, currentPages, currentCountries, connected } = useLiveTraffic(siteId);
   return (
     <>
       <LiveCounter count={count} connected={connected} />
       <div className="grid gap-4 sm:grid-cols-2">
         <LiveFeed feed={feed} />
         <CurrentPages pages={currentPages} />
+        <LiveCountries countries={currentCountries} />
       </div>
     </>
   );

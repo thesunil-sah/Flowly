@@ -67,6 +67,7 @@
             path: path,
             referrer: document.referrer,
             screen_w: screen.width,
+            language: navigator.language,
             utm_source: param(params, "utm_source"),
             utm_medium: param(params, "utm_medium"),
             utm_campaign: param(params, "utm_campaign"),

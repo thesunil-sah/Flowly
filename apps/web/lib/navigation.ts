@@ -54,11 +54,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Acquisitions",
     items: [
-      { title: "Channels", href: "/acquisitions/channels", icon: Network, ready: false },
+      { title: "Channels", href: "/acquisitions/channels", icon: Network, ready: true },
       { title: "Referrers", href: "/acquisitions/referrers", icon: Link2, ready: true },
-      { title: "Search", href: "/acquisitions/search", icon: Search, ready: false },
-      { title: "Social", href: "/acquisitions/social", icon: Share2, ready: false },
-      { title: "AI platforms", href: "/acquisitions/ai", icon: Sparkles, ready: false },
+      { title: "Search", href: "/acquisitions/search", icon: Search, ready: true },
+      { title: "Social", href: "/acquisitions/social", icon: Share2, ready: true },
+      { title: "AI platforms", href: "/acquisitions/ai", icon: Sparkles, ready: true },
       { title: "Campaigns", href: "/acquisitions/campaigns", icon: Megaphone, ready: true },
     ],
   },
@@ -66,8 +66,8 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Geographic",
     items: [
       { title: "Countries", href: "/geo/countries", icon: Globe, ready: true },
-      { title: "Cities", href: "/geo/cities", icon: MapPin, ready: false },
-      { title: "Languages", href: "/geo/languages", icon: Languages, ready: false },
+      { title: "Cities", href: "/geo/cities", icon: MapPin, ready: true },
+      { title: "Languages", href: "/geo/languages", icon: Languages, ready: true },
     ],
   },
   {
@@ -75,7 +75,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { title: "Browsers", href: "/tech/browsers", icon: AppWindow, ready: true },
       { title: "OS", href: "/tech/os", icon: Cpu, ready: true },
-      { title: "Screens", href: "/tech/screens", icon: Monitor, ready: false },
+      { title: "Screens", href: "/tech/screens", icon: Monitor, ready: true },
       { title: "Devices", href: "/tech/devices", icon: Smartphone, ready: true },
     ],
   },

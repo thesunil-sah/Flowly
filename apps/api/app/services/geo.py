@@ -1,11 +1,11 @@
 """Geo-IP enrichment via MaxMind GeoLite2 (fail-open).
 
-`lookup(ip)` maps a client IP to ``(country, region)`` for the audience reports.
-It runs on the ingest hot path, so the reader (a memory-mapped .mmdb) is opened
-once and reused; individual lookups are microsecond-scale.
+`lookup(ip)` maps a client IP to ``(country, region, city)`` for the audience
+reports. It runs on the ingest hot path, so the reader (a memory-mapped .mmdb) is
+opened once and reused; individual lookups are microsecond-scale.
 
 Everything fails open: if `GEOIP_DB_PATH` is unset/unreadable, or the IP isn't
-in the database, or the lookup raises, we return ``("", "")``. Ingestion must
+in the database, or the lookup raises, we return ``("", "", "")``. Ingestion must
 never break because geo is unavailable (CLAUDE.md — "ingestion must never
 throw"). The raw IP is used only here and never logged.
 """
@@ -37,23 +37,24 @@ def _get_reader() -> Reader | None:
     return _reader
 
 
-def lookup(ip: str) -> tuple[str, str]:
-    """Return ``(country_iso, region)`` for ``ip``; ``("", "")`` on any failure."""
+def lookup(ip: str) -> tuple[str, str, str]:
+    """Return ``(country_iso, region, city)`` for ``ip``; ``("", "", "")`` on any failure."""
     reader = _get_reader()
     if reader is None or not ip:
-        return ("", "")
+        return ("", "", "")
     try:
         resp = reader.city(ip)
     except (AddressNotFoundError, ValueError):
         # Not in the DB, or not a routable/valid address.
-        return ("", "")
+        return ("", "", "")
     except Exception:
         # Belt-and-braces: geo must never break ingestion.
-        return ("", "")
+        return ("", "", "")
     country = resp.country.iso_code or ""
     # `subdivisions.most_specific` is the finest region (state/province).
     region = resp.subdivisions.most_specific.name or ""
-    return (country, region)
+    city = resp.city.name or ""
+    return (country, region, city)
 
 
 def reset_reader_cache() -> None:

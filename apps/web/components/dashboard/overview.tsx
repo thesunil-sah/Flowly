@@ -5,17 +5,26 @@ import { useRouter } from "next/navigation";
 import { Radio } from "lucide-react";
 
 import { BreakdownCard } from "@/components/reports/breakdown-card";
+import { HeatmapCard } from "@/components/reports/heatmap-card";
 import { PagesCard } from "@/components/reports/pages-card";
 import { CountryIcon, SourceIcon } from "@/components/reports/row-icon";
 import { StatCards } from "@/components/reports/stat-cards";
 import { TrafficChartCard } from "@/components/reports/traffic-chart";
 import { UtmCard } from "@/components/reports/utm-card";
+import { useFilters } from "@/components/layout/filter-context";
 import { useRange } from "@/components/layout/range-context";
 import { ShareControl } from "@/components/ShareControl";
 import { ChartSkeleton, MetricCardsSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useAudience, useOverview, usePages, useSources, useTimeseries } from "@/hooks/useStats";
+import {
+  useAudience,
+  useHeatmap,
+  useOverview,
+  usePages,
+  useSources,
+  useTimeseries,
+} from "@/hooks/useStats";
 
 // The authed Overview: a premium composition of the reports kit fed by the
 // authed stats hooks, mirroring the public share dashboard's overview section.
@@ -24,12 +33,14 @@ import { useAudience, useOverview, usePages, useSources, useTimeseries } from "@
 export function OverviewReport({ siteId }: { siteId: string }) {
   const router = useRouter();
   const { range } = useRange();
+  const { filters, setFilter } = useFilters();
 
-  const overview = useOverview(siteId, range);
-  const timeseries = useTimeseries(siteId, range);
-  const sources = useSources(siteId, range);
-  const countries = useAudience(siteId, range, "country");
-  const topPages = usePages(siteId, range, "top");
+  const overview = useOverview(siteId, range, filters);
+  const timeseries = useTimeseries(siteId, range, filters);
+  const sources = useSources(siteId, range, filters);
+  const countries = useAudience(siteId, range, "country", filters);
+  const topPages = usePages(siteId, range, "top", filters);
+  const heatmap = useHeatmap(siteId, range, filters);
 
   // A loaded-but-empty overview means the snippet hasn't sent data yet (in this
   // window) — nudge toward install rather than showing a wall of zeros.
@@ -75,6 +86,7 @@ export function OverviewReport({ siteId }: { siteId: string }) {
           labelFallback="direct"
           limit={6}
           onViewAll={() => router.push("/acquisitions/referrers")}
+          onSelect={(label) => label && setFilter("source", label)}
         />
         <BreakdownCard
           title="Countries"
@@ -83,6 +95,7 @@ export function OverviewReport({ siteId }: { siteId: string }) {
           labelFallback="Unknown"
           limit={6}
           onViewAll={() => router.push("/geo/countries")}
+          onSelect={(label) => label && setFilter("country", label)}
         />
         <PagesCard
           title="Top pages"
@@ -90,8 +103,11 @@ export function OverviewReport({ siteId }: { siteId: string }) {
           metric={topPages.data?.metric ?? "pageviews"}
           limit={6}
           onViewAll={() => router.push("/behavior/pages")}
+          onSelect={(label) => label && setFilter("path", label)}
         />
       </div>
+
+      {heatmap.data ? <HeatmapCard data={heatmap.data} /> : null}
 
       {sources.data && sources.data.utm.length > 0 ? <UtmCard rows={sources.data.utm} /> : null}
 

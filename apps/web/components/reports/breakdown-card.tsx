@@ -16,6 +16,7 @@ export function BreakdownCard({
   icon,
   limit,
   onViewAll,
+  onSelect,
   labelFallback = "(none)",
   emptyText = "No data in this range",
 }: {
@@ -24,6 +25,8 @@ export function BreakdownCard({
   icon?: (label: string) => ReactNode;
   limit?: number;
   onViewAll?: () => void;
+  /** When set, each row becomes a click-to-filter button (Phase 10). */
+  onSelect?: (label: string) => void;
   labelFallback?: string;
   emptyText?: string;
 }) {
@@ -45,23 +48,41 @@ export function BreakdownCard({
         <p className="py-4 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
         <ul className="flex flex-col gap-1">
-          {shown.map((r) => (
-            <li key={r.label || labelFallback} className="relative flex items-center gap-2.5 rounded-md px-2 py-1.5">
-              {/* share bar behind the row content */}
-              <span
-                className="absolute inset-y-0 left-0 rounded-md bg-primary/10"
-                style={{ width: `${Math.round((r.visitors / max) * 100)}%` }}
-                aria-hidden
-              />
-              <span className="relative flex min-w-0 flex-1 items-center gap-2.5 text-sm">
-                {icon?.(r.label)}
-                <span className="truncate">{r.label || labelFallback}</span>
-              </span>
-              <span className="relative shrink-0 text-sm font-medium tabular-nums">
-                {formatNumber(r.visitors)}
-              </span>
-            </li>
-          ))}
+          {shown.map((r) => {
+            const inner = (
+              <>
+                {/* share bar behind the row content */}
+                <span
+                  className="absolute inset-y-0 left-0 rounded-md bg-primary/10"
+                  style={{ width: `${Math.round((r.visitors / max) * 100)}%` }}
+                  aria-hidden
+                />
+                <span className="relative flex min-w-0 flex-1 items-center gap-2.5 text-sm">
+                  {icon?.(r.label)}
+                  <span className="truncate">{r.label || labelFallback}</span>
+                </span>
+                <span className="relative shrink-0 text-sm font-medium tabular-nums">
+                  {formatNumber(r.visitors)}
+                </span>
+              </>
+            );
+            const rowClass = "relative flex items-center gap-2.5 rounded-md px-2 py-1.5";
+            return (
+              <li key={r.label || labelFallback}>
+                {onSelect ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelect(r.label)}
+                    className={`${rowClass} w-full text-left transition-colors hover:bg-muted`}
+                  >
+                    {inner}
+                  </button>
+                ) : (
+                  <div className={rowClass}>{inner}</div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

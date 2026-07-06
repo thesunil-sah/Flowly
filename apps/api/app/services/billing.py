@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import HARD_CEILING_MULTIPLE, PLAN_QUOTAS, settings
-from app.core.exceptions import BillingError, ValidationError
+from app.core.exceptions import BillingError, UpgradeRequiredError, ValidationError
 from app.models.tables import Account, Subscription
 from app.services.email import send_email
 
@@ -33,6 +33,11 @@ logger = logging.getLogger("flowly.billing")
 # The free tier is both the entry plan and the fallback when entitlement lapses
 # (expired trial with no sub, or a canceled subscription).
 FREE_PLAN = "free"
+
+# Audience dimensions gated to paying accounts (Phase 11). City comes from the
+# GeoLite2-City lookup; it's the first premium report. Enforced at read time on
+# every path that serves it (dashboard, public share, CSV export).
+PAID_AUDIENCE_DIMENSIONS = frozenset({"city"})
 
 # Usage keys are month-scoped, so a ~45-day TTL lets a finished month self-clean
 # a couple of weeks after it ends while the current month always survives.
@@ -139,6 +144,16 @@ def effective_plan(account: Account, now: datetime) -> str:
     ):
         return account.plan
     return FREE_PLAN
+
+
+def require_dimension_access(account: Account, dimension: str, now: datetime) -> None:
+    """Raise `UpgradeRequiredError` if `dimension` is paid-only and the account's
+    effective plan is free. A no-op for free dimensions or paying accounts.
+
+    Called from every read path that serves audience breakdowns (authed stats,
+    public share, CSV export) so the gate isn't UI-only (§9)."""
+    if dimension in PAID_AUDIENCE_DIMENSIONS and effective_plan(account, now) == FREE_PLAN:
+        raise UpgradeRequiredError()
 
 
 def quota_for(plan: str) -> int:

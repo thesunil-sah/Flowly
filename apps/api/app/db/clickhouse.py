@@ -32,9 +32,11 @@ EVENT_COLUMNS: tuple[str, ...] = (
     "utm_campaign",
     "country",
     "region",
+    "city",
     "device",
     "browser",
     "os",
+    "language",
     "visitor_hash",
     "screen_w",
 )
@@ -42,6 +44,8 @@ EVENT_COLUMNS: tuple[str, ...] = (
 # Append-only, partitioned by month, ordered for by-site_id queries.
 # Empty-string defaults (not Nullable) keep inserts fast; `event_id` is present
 # so a future move to ReplacingMergeTree (dedupe on it) is cheap.
+# NOTE: keep this column set in sync with app/db/ch_migrations.py — fresh installs
+# get columns here, existing installs get them from the idempotent ALTERs there.
 CREATE_EVENTS_TABLE = """
 CREATE TABLE IF NOT EXISTS events (
     event_id      UUID,
@@ -55,9 +59,11 @@ CREATE TABLE IF NOT EXISTS events (
     utm_campaign  String,
     country       LowCardinality(String),
     region        String,
+    city          String,
     device        LowCardinality(String),
     browser       LowCardinality(String),
     os            LowCardinality(String),
+    language      LowCardinality(String),
     visitor_hash  String,
     screen_w      UInt16
 )
@@ -138,11 +144,18 @@ async def close_clickhouse() -> None:
 async def _main() -> None:
     import sys
 
-    if "--init" in sys.argv:
+    from app.db.ch_migrations import run_migrations
+
+    if "--migrate" in sys.argv:
+        client = await get_clickhouse()
+        await init_events_table(client)  # fresh install → create, then migrate
+        applied = await run_migrations(client)
+        print(f"events migrated ({len(applied)}): {', '.join(applied)}")
+    elif "--init" in sys.argv:
         await init_events_table()
         print("events table ready")
     else:
-        print("usage: python -m app.db.clickhouse --init")
+        print("usage: python -m app.db.clickhouse [--init | --migrate]")
     await close_clickhouse()
 
 
