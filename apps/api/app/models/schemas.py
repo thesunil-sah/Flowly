@@ -415,3 +415,17 @@ class HeatmapCell(BaseModel):
 class HeatmapOut(BaseModel):
     timezone: str  # the IANA tz the cells were bucketed in
     cells: list[HeatmapCell]  # dense 7×24 grid (168 cells)
+
+
+class UptimeIncidentOut(BaseModel):
+    started_at: datetime
+    resolved_at: datetime | None  # null while the incident is ongoing
+    cause: str  # timeout | connect | dns | http_5xx | blocked
+    ongoing: bool
+
+
+class UptimeStatusOut(BaseModel):
+    status: str  # up | down | unknown (never checked yet)
+    last_checked_at: datetime | None
+    last_status_code: int | None
+    incidents: list[UptimeIncidentOut]  # most recent first

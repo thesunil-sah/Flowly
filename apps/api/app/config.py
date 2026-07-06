@@ -110,6 +110,19 @@ class Settings(BaseSettings):
     stripe_price_pro_annual: str = ""  # STRIPE_PRICE_PRO_ANNUAL
     stripe_price_business_annual: str = ""  # STRIPE_PRICE_BUSINESS_ANNUAL
 
+    # --- Uptime monitoring (Phase 12) -------------------------------------
+    # Master switch for the pinger worker; off by default so nothing pings
+    # customer sites until an operator explicitly enables it.
+    uptime_enabled: bool = False  # UPTIME_ENABLED
+    # Per-request connect+read timeout for an uptime check (seconds).
+    uptime_check_timeout: float = 8.0  # UPTIME_CHECK_TIMEOUT
+    # Consecutive failed checks before an incident opens + the owner is alerted.
+    # Retry-before-alarm: a single blip (streak 1) never pages anyone.
+    uptime_fail_threshold: int = 2  # UPTIME_FAIL_THRESHOLD
+    # Max redirect hops followed during a check — each hop is re-validated by the
+    # SSRF guard (a redirect to an internal address is the classic bypass).
+    uptime_max_redirects: int = 3  # UPTIME_MAX_REDIRECTS
+
 
 # Monthly pageview quota per plan tier. `free` is both the entry tier and the
 # lapsed-trial / canceled-subscription fallback (see billing.effective_plan).

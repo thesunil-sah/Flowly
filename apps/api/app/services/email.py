@@ -78,3 +78,26 @@ async def send_code_email(to: str, code: str, purpose: str) -> None:
     subject = CODE_SUBJECTS.get(purpose, "Your Flowly code")
     body = CODE_MESSAGES[purpose].format(code=code)
     await send_email(to, subject, body)
+
+
+async def send_uptime_down_email(to: str, domain: str, cause: str) -> None:
+    """Alert the owner that their site went down (Phase 12).
+
+    Transactional — a service alert about the customer's *own* site, so it goes
+    straight through `send_email` and never through the marketing opt-out gate
+    (`services/notifications.py`); like verify/reset, opting out can't suppress it.
+    """
+    subject = f"⚠️ {domain} looks down"
+    text = (
+        f"We couldn't reach {domain} ({cause}). "
+        "We'll email you again as soon as it's back up.\n\n"
+        "— Flowly uptime monitoring"
+    )
+    await send_email(to, subject, text)
+
+
+async def send_uptime_up_email(to: str, domain: str) -> None:
+    """Notify the owner that their site recovered (Phase 12). Transactional."""
+    subject = f"✅ {domain} is back up"
+    text = f"{domain} is responding again. The incident is resolved.\n\n— Flowly uptime monitoring"
+    await send_email(to, subject, text)

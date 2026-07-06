@@ -8,6 +8,7 @@ import { Field, FormError, SubmitButton } from "@/components/auth/fields";
 import { InstallGuide, StatusPill } from "@/components/install";
 import { TableSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
+import { UptimePanel } from "@/components/uptime/uptime-panel";
 import { useCreateSite, useSites, useSiteStatus } from "@/hooks/useSites";
 import type { Site } from "@/lib/api";
 
@@ -32,6 +33,8 @@ function InstallStep({ site, onBack }: { site: Site; onBack: () => void }) {
       </div>
 
       <InstallGuide snippet={site.snippet} />
+
+      <UptimePanel siteId={site.site_id} />
 
       {connected ? (
         <div className="flex items-center gap-3 text-sm">
