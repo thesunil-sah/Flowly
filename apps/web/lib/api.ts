@@ -123,8 +123,29 @@ export type UtmRow = {
 };
 export type Sources = { sources: BreakdownRow[]; utm: UtmRow[] };
 
-export type PageRow = { label: string; count: number; visitors: number };
+export type PageRow = {
+  label: string;
+  count: number;
+  visitors: number;
+  // Present only on the engagement ranking (sort=engagement); null otherwise.
+  avg_duration?: number | null;
+  bounce_rate?: number | null;
+};
 export type Pages = { kind: string; metric: "pageviews" | "sessions"; rows: PageRow[] };
+
+// --- Phase 10: channels + heatmap ------------------------------------------
+export type ChannelRow = { channel: string; pageviews: number; visitors: number };
+export type Channels = { channels: ChannelRow[] };
+
+export type HeatmapCell = { dow: number; hour: number; pageviews: number; visitors: number };
+export type Heatmap = { timezone: string; cells: HeatmapCell[] };
+
+/**
+ * Active dashboard filters (Phase 10) — exact-match slices on allowlisted
+ * columns (country/device/browser/os/source/path). Threaded verbatim into every
+ * stats request as query params; the server binds each value as a param (§9).
+ */
+export type StatsFilters = Record<string, string>;
 
 /** A [from, to) window as ISO-8601 UTC strings (the stats API is UTC-only). */
 export type StatsRange = { from: string; to: string };
@@ -230,8 +251,15 @@ export async function downloadExportCsv(
   siteId: string,
   range: StatsRange,
   dataset = "overview",
+  filters: StatsFilters = {},
 ): Promise<void> {
-  const q = new URLSearchParams({ site_id: siteId, from: range.from, to: range.to, dataset });
+  const q = new URLSearchParams({
+    site_id: siteId,
+    from: range.from,
+    to: range.to,
+    dataset,
+    ...filters,
+  });
   const path = `/stats/export?${q.toString()}`;
   let resp = await request(path, {}, getAccessToken());
   if (resp.status === 401 && (await tryRefresh())) {

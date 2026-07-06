@@ -119,3 +119,66 @@ async def test_inverted_range_is_422(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
+
+
+# --- Phase 11: the paid-tier city gate --------------------------------------
+_BREAKDOWN_ROW = [{"label": "Paris", "pageviews": 3, "visitors": 2}]
+
+
+async def _seed_account(
+    session_factory: async_sessionmaker[AsyncSession], plan: str, status: str, site_id: str
+) -> UUID:
+    async with session_factory() as s:
+        acc = Account(
+            email=f"{site_id}@example.com", username=site_id, plan=plan, status=status
+        )
+        s.add(acc)
+        await s.flush()
+        s.add(Site(account_id=acc.id, site_id=site_id, domain=f"{site_id}.com"))
+        await s.commit()
+        return acc.id
+
+
+async def test_city_dimension_gated_for_free_account(
+    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    acc_id = await _seed_account(session_factory, "free", "active", "freesite")
+    ch = MockClickHouse(_BREAKDOWN_ROW)
+    app.dependency_overrides[get_clickhouse] = lambda: ch
+    token = create_access_token(acc_id)
+    resp = await client.get(
+        "/stats/audience",
+        params={"site_id": "freesite", "dimension": "city"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 402  # UpgradeRequiredError
+    assert ch.calls == []  # gated before any ClickHouse query ran
+
+
+async def test_city_dimension_allowed_for_paid_account(
+    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    acc_id = await _seed_account(session_factory, "pro", "active", "prosite")
+    app.dependency_overrides[get_clickhouse] = lambda: MockClickHouse(_BREAKDOWN_ROW)
+    token = create_access_token(acc_id)
+    resp = await client.get(
+        "/stats/audience",
+        params={"site_id": "prosite", "dimension": "city"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["rows"][0]["label"] == "Paris"
+
+
+async def test_language_dimension_is_free(
+    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    acc_id = await _seed_account(session_factory, "free", "active", "langsite")
+    app.dependency_overrides[get_clickhouse] = lambda: MockClickHouse(_BREAKDOWN_ROW)
+    token = create_access_token(acc_id)
+    resp = await client.get(
+        "/stats/audience",
+        params={"site_id": "langsite", "dimension": "language"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200  # language is NOT gated

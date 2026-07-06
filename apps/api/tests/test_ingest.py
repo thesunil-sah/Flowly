@@ -143,3 +143,18 @@ async def test_ingest_marks_active_and_publishes(redis, monkeypatch) -> None:
     assert payload["path"] == "/p"
     assert "visitor_hash" not in payload
     assert "203.0.113.5" not in str(payload)
+
+
+async def test_ingest_passes_normalized_language(redis) -> None:
+    # Phase 11: navigator.language rides through to the stream row, lowercased.
+    await ingest.ingest_event(_event(language="en-US"), "9.9.9.9", UA, None, redis)
+    _id, fields = (await redis.xrange(STREAM))[0]
+    assert fields["language"] == "en-us"
+
+
+async def test_ingest_missing_language_is_empty(redis) -> None:
+    # An older snippet that doesn't send language must still enqueue (no reject).
+    eid = await ingest.ingest_event(_event(), "9.9.9.9", UA, None, redis)
+    assert eid is not None
+    _id, fields = (await redis.xrange(STREAM))[0]
+    assert fields["language"] == ""

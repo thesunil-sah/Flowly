@@ -55,6 +55,9 @@ const AUDIENCE_TITLES: Record<AudienceDimension, string> = {
   device: "Devices",
   browser: "Browsers",
   os: "OS",
+  screen: "Screen sizes",
+  city: "Cities",
+  language: "Languages",
 };
 
 function renderCountryIcon(label: string): ReactNode {
@@ -75,6 +78,9 @@ const AUDIENCE_ICONS: Record<AudienceDimension, (label: string) => ReactNode> = 
   device: renderDeviceIcon,
   browser: renderBrowserIcon,
   os: renderOsIcon,
+  screen: renderDeviceIcon,
+  city: renderCountryIcon,
+  language: renderCountryIcon,
 };
 
 function SectionPanel({

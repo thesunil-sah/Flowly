@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import settings
-from app.core.exceptions import ValidationError
+from app.core.exceptions import UpgradeRequiredError, ValidationError
 from app.models.tables import Account
 from app.services import billing
 
@@ -286,3 +286,21 @@ async def test_trial_will_end_is_noop(
     async with session_factory() as s:
         acc = await s.get(Account, acc_id)
         assert acc.status == "trialing"  # unchanged
+
+
+# --- Phase 11: paid-tier city gate -----------------------------------------
+def test_require_dimension_access_gates_city_for_free() -> None:
+    free = _account(plan="free", status="active")  # active+free → effective free
+    with pytest.raises(UpgradeRequiredError):
+        billing.require_dimension_access(free, "city", NOW)
+
+
+def test_require_dimension_access_allows_paid_city() -> None:
+    paid = _account(plan="pro", status="active")
+    billing.require_dimension_access(paid, "city", NOW)  # must not raise
+
+
+def test_require_dimension_access_ignores_free_dimensions() -> None:
+    free = _account(plan="free", status="active")
+    billing.require_dimension_access(free, "country", NOW)  # not gated, no raise
+    billing.require_dimension_access(free, "language", NOW)

@@ -17,3 +17,16 @@ export function rangeForDays(days: number): StatsRange {
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
   return { from: from.toISOString(), to: to.toISOString() };
 }
+
+/**
+ * Build a [from-day 00:00, to-day+1 00:00) window from two local `YYYY-MM-DD`
+ * dates (custom range picker, Phase 10). `to` is made exclusive by advancing a
+ * day so the picked end date is included. Midnight is interpreted in the
+ * viewer's local time, then serialized to UTC (the stats API is UTC-only).
+ */
+export function rangeFromDates(fromDate: string, toDate: string): StatsRange {
+  const from = new Date(`${fromDate}T00:00:00`);
+  const to = new Date(`${toDate}T00:00:00`);
+  to.setDate(to.getDate() + 1);
+  return { from: from.toISOString(), to: to.toISOString() };
+}

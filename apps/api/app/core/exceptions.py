@@ -76,6 +76,13 @@ class BillingError(AppError):
     message = "Billing is not set up for this account."
 
 
+class UpgradeRequiredError(AppError):
+    """A paid-tier report was requested by a free account (Phase 11 city gate)."""
+
+    status_code = 402
+    message = "This report is available on a paid plan."
+
+
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 

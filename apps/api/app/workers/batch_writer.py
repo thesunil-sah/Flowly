@@ -62,9 +62,11 @@ def _coerce_row(fields: dict[str, str]) -> dict[str, Any]:
         "utm_campaign": fields.get("utm_campaign", ""),
         "country": fields.get("country", ""),
         "region": fields.get("region", ""),
+        "city": fields.get("city", ""),
         "device": fields.get("device", ""),
         "browser": fields.get("browser", ""),
         "os": fields.get("os", ""),
+        "language": fields.get("language", ""),
         "visitor_hash": fields.get("visitor_hash", ""),
         "screen_w": int(fields.get("screen_w") or 0),
     }

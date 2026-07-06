@@ -384,9 +384,34 @@ class PageRow(BaseModel):
     label: str
     count: int  # pageviews for kind="top"; sessions for entry/exit
     visitors: int
+    # Present only on the engagement ranking (sort="engagement"); None otherwise.
+    avg_duration: int | None = None  # avg seconds on page
+    bounce_rate: float | None = None  # percent of this page's views in 1-page sessions
 
 
 class PagesOut(BaseModel):
     kind: str  # "top" | "entry" | "exit"
     metric: str  # what `count` means: "pageviews" | "sessions"
     rows: list[PageRow]
+
+
+class ChannelRow(BaseModel):
+    channel: str  # direct | search | social | ai | referral
+    pageviews: int
+    visitors: int
+
+
+class ChannelsOut(BaseModel):
+    channels: list[ChannelRow]
+
+
+class HeatmapCell(BaseModel):
+    dow: int  # 1=Monday … 7=Sunday (localized to the request timezone)
+    hour: int  # 0–23 (localized)
+    pageviews: int
+    visitors: int
+
+
+class HeatmapOut(BaseModel):
+    timezone: str  # the IANA tz the cells were bucketed in
+    cells: list[HeatmapCell]  # dense 7×24 grid (168 cells)

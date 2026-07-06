@@ -4,6 +4,8 @@ import Link from "next/link";
 import { LayoutGrid } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { ActiveFilters } from "@/components/dashboard/active-filters";
+import { CustomRange } from "@/components/dashboard/custom-range";
 import { useActiveSite } from "@/components/layout/site-context";
 import { useRange } from "@/components/layout/range-context";
 import { SegmentedTabs } from "@/components/segmented-tabs";
@@ -20,11 +22,14 @@ import { RANGE_PRESETS } from "@/lib/range";
 export function RangeTabs() {
   const { presetKey, setPresetDays } = useRange();
   return (
-    <SegmentedTabs
-      tabs={RANGE_PRESETS.map((p) => ({ key: p.key, label: p.label }))}
-      active={presetKey}
-      onChange={(key) => setPresetDays(RANGE_PRESETS.find((p) => p.key === key)!.days)}
-    />
+    <div className="flex items-center gap-2">
+      <SegmentedTabs
+        tabs={RANGE_PRESETS.map((p) => ({ key: p.key, label: p.label }))}
+        active={presetKey}
+        onChange={(key) => setPresetDays(RANGE_PRESETS.find((p) => p.key === key)!.days)}
+      />
+      <CustomRange />
+    </div>
   );
 }
 
@@ -72,6 +77,7 @@ export function ReportShell({
           {actions?.(activeSiteId)}
         </div>
       </div>
+      <ActiveFilters />
       {/* Remount the body per site so any per-site local state resets cleanly. */}
       <div key={activeSiteId}>{children(activeSiteId)}</div>
     </div>

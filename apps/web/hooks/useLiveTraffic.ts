@@ -20,6 +20,7 @@ export type LiveEvent = {
 export type FeedRow = LiveEvent & { key: number };
 
 export type PageCount = { path: string; count: number };
+export type CountryCount = { country: string; count: number };
 
 type ServerMessage =
   | { type: "snapshot"; count: number }
@@ -144,5 +145,19 @@ export function useLiveTraffic(siteId: string | null) {
       .slice(0, TOP_PAGES);
   }, [feed]);
 
-  return { count, feed, currentPages, connected };
+  // Live visitors by country (Phase 11), aggregated from the same capped feed —
+  // the live payload already carries `country` (no visitor_hash). Blank country
+  // (geo failed open) is dropped so the panel doesn't show an "Unknown" bar.
+  const currentCountries = useMemo<CountryCount[]>(() => {
+    const counts = new Map<string, number>();
+    for (const e of feed) {
+      if (e.country) counts.set(e.country, (counts.get(e.country) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([country, n]) => ({ country, count: n }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, TOP_PAGES);
+  }, [feed]);
+
+  return { count, feed, currentPages, currentCountries, connected };
 }

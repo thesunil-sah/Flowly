@@ -532,20 +532,21 @@ Premium UI overhaul. Rules: every phase builds ON the F0 design system — no ad
 
 ### Phase 10 — Query-layer reports (existing data — no schema or tracker changes)
 **Goal:** richer breakdowns + drill-down, built purely on data already in `events`.
-- [ ] Channel classifier (`services/channels.py` or inside `services/stats.py`): bucket `referrer` host → direct / search (Google/Bing/DDG…) / social (X/LinkedIn/Reddit/Facebook…) / **AI platforms (chatgpt.com, perplexity.ai, claude.ai, gemini.google.com…)** / referral; expose search-engine + social + AI-platform breakdowns on `/stats/sources` (AI-referral traffic is a 2026-relevant report competitors now surface)
-- [ ] Screen-size / viewport breakdown: width buckets over existing `screen_w` (audience report)
-- [ ] Time-of-day / day-of-week heatmap: `toHour(ts)` / `toDayOfWeek(ts)` aggregation (`services/stats.py` + a heatmap panel in `components/stats.tsx`) — **UTC in SQL, user timezone at display only (§4)**
-- [ ] Custom date range picker (frontend-only): calendar picker in the dashboard calling the existing endpoints; server already parses arbitrary ranges via `core/timerange.py::stats_range` (bounded by `MAX_RANGE_DAYS`)
-- [ ] Dashboard-wide click-to-filter + multi-filter combos (country + device + source stacked): optional filter params threaded into every `(sql, params)` builder in `services/stats.py` (**server-parameterized — never string-formatted, §9**) + filter state in the dashboard; every chart/table re-filters
-- [ ] Page detail view: click a page → all reports filtered by `path` (trend, referrers, bounce, avg time) — falls out of the filter work
-- [ ] Top-10 pages ranked by traffic and by engagement (bounce / avg time on page, reusing `_SESSIONIZED_CTE`)
+- [x] Channel classifier (`services/channels.py`): bucket `referrer` host → direct / search / social / **AI platforms (chatgpt.com, perplexity.ai, claude.ai, gemini.google.com…)** / referral; `/stats/channels` (5-way split) + `/stats/channels/{channel}` per-host drill-down (Search/Social/AI sidebar pages). Host lists shared by `classify()` + the SQL `multiIf`; AI checked before search
+- [x] Screen-size / viewport breakdown: `multiIf` width buckets over `screen_w` on `/stats/audience?dimension=screen` (`/tech/screens` page)
+- [x] Time-of-day / day-of-week heatmap: `/stats/heatmap` — **§4 exception: aggregate in the viewer's IANA tz** (`toHour(ts,{tz})` / `toDayOfWeek(ts,0,{tz})`); 7×24 zero-filled grid; `components/reports/heatmap-card.tsx` in Overview
+- [x] Custom date range picker (frontend-only): native date-input popover (`components/dashboard/custom-range.tsx`, dependency-free) → custom `[from,to)` in the range context; server parses arbitrary ranges already
+- [x] Dashboard-wide click-to-filter + multi-filter combos: allowlisted filter dict threaded into every builder + `_SESSIONIZED_CTE` (**server-parameterized `f_*` params, §9**); `core/statsfilters.py::FilterDep`, `components/layout/filter-context.tsx` + `active-filters.tsx` + `onSelect` on cards; every chart/table re-filters
+- [x] Page detail view: click a page row → `path` filter → all reports re-slice (falls out of the filter work)
+- [x] Top-10 pages ranked by traffic and by engagement (`sort=engagement`: per-page bounce % + avg time-on-page via `leadInFrame`; traffic/engagement toggle)
+- [x] **Full parity (decided):** filters + new datasets flow into the public share router (`/public/{token}/{channels,heatmap,audience?dimension=screen,…}`) and CSV export (`channels`/`screens`/`heatmap` datasets + filters in `services/export.py`)
 
 ### Phase 11 — Small data additions (first ClickHouse schema change)
 **Goal:** city, language, and the live map — plus a real migration convention for `events`.
-- [ ] **Establish the ClickHouse migration convention first** (Alembic is Postgres-only, §3): ordered, idempotent `ALTER TABLE events ADD COLUMN IF NOT EXISTS …` scripts + how they run in dev/prod; document it in §3 in the same change
-- [ ] City breakdown: read city from the GeoLite2-City lookup already in `services/geo.py` (fail-open), new `city` column, surface in audience — **paid-tier report**
-- [ ] Language breakdown: re-add `navigator.language` to the tracker (dropped in Phase 2; keep < 2 KB), pass through `/collect` (`models/events.py`), new `language` column, audience report
-- [ ] Live visitor map: country-level dots/choropleth on the live page from the existing `live:{site_id}` pub/sub payload (already carries `country`, no `visitor_hash`) — no backend change
+- [x] **ClickHouse migration convention** (`app/db/ch_migrations.py` — ordered idempotent `ADD COLUMN IF NOT EXISTS` + `--migrate` CLI; `CREATE_EVENTS_TABLE` kept in sync; documented in §3)
+- [x] City breakdown: `geo.lookup`→city, threaded to a new `city` column; `/geo/cities` page — **paid-tier** (server 402 gate on stats/public/export via `billing.require_dimension_access`; free UI shows upgrade `EmptyState`)
+- [x] Language breakdown: `navigator.language` re-added to tracker (1.1 KB), `language` column, `/geo/languages` page (free)
+- [x] Live-by-country panel: `LiveCountries` (flags + live counts + bars) on the live page from the existing live `country` payload — no backend change. **NOTE:** shipped as a lean country panel, not a geographic choropleth (a real map needs a bundled world-map/topojson asset — obtainable only online; deferred)
 
 ### Phase 12 — Uptime monitoring & down alerts
 **Goal:** ping each site on a schedule; email the owner when it goes down / recovers.

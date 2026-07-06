@@ -53,7 +53,7 @@ def build_stream_row(event: CollectEvent, ip: str, ua: str, origin: str | None) 
     Redis stream fields are strings; `None` becomes `""`. The batch writer
     coerces `event_id`/`ts`/`screen_w` back to their ClickHouse types.
     """
-    country, region = geo.lookup(ip)
+    country, region, city = geo.lookup(ip)
     device, browser, os_name = useragent.parse(ua)
     return {
         "event_id": str(uuid4()),
@@ -67,9 +67,11 @@ def build_stream_row(event: CollectEvent, ip: str, ua: str, origin: str | None) 
         "utm_campaign": event.utm_campaign or "",
         "country": country,
         "region": region,
+        "city": city,
         "device": device,
         "browser": browser,
         "os": os_name,
+        "language": event.language or "",
         # visitor_hash is added by the caller (needs the daily salt from Redis).
         "visitor_hash": "",
         "screen_w": str(event.screen_w),
