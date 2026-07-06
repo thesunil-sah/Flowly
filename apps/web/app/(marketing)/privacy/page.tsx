@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 // Public privacy / GDPR page documenting the cookieless approach (Phase 9). A
 // Server Component with no data fetching — it states the product's privacy
@@ -21,7 +20,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 p-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 p-8">
       <header className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Privacy at Flowly</h1>
         <p className="text-muted-foreground">
@@ -80,12 +79,6 @@ export default function PrivacyPage() {
           .
         </p>
       </Section>
-
-      <footer className="border-t border-border pt-4 text-sm">
-        <Link href="/" className="text-muted-foreground underline">
-          ← Back to Flowly
-        </Link>
-      </footer>
-    </main>
+    </div>
   );
 }

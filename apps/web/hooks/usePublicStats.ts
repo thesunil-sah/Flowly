@@ -25,13 +25,19 @@ export function usePublicMeta(token: string) {
   });
 }
 
-export function usePublicOverview(token: string, range: StatsRange, compare = true) {
+export function usePublicOverview(
+  token: string,
+  range: StatsRange,
+  compare = true,
+  opts: { refetchInterval?: number } = {},
+) {
   return useQuery({
     queryKey: ["public", "overview", token, range.from, range.to, compare],
     queryFn: () =>
       publicFetch<Overview>(
         publicStatsPath(token, "overview", range, compare ? { compare: "previous" } : {}),
       ),
+    refetchInterval: opts.refetchInterval,
   });
 }
 
