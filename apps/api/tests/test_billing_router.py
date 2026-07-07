@@ -130,6 +130,27 @@ async def test_checkout_blocked_when_already_subscribed(
     assert resp.status_code == 402  # BillingError — manage via portal
 
 
+async def test_checkout_blocked_while_trialing(
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A trialing account is already `metered` (entitled). Re-running Checkout
+    # would mint a SECOND live subscription → double billing. The guard must
+    # gate on effective entitlement, not just active/past_due.
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr(billing.settings, "stripe_price_metered", "price_metered")
+    owner = await _owner(
+        session_factory,
+        plan="metered",
+        status="trialing",
+        trial_ends_at=datetime.now(UTC) + timedelta(days=3),
+    )
+    resp = await client.post("/billing/checkout", headers=_auth(owner))
+    assert resp.status_code == 402  # blocked — use the portal, don't double-subscribe
+
+
 async def test_portal_without_subscription_is_402(
     client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:

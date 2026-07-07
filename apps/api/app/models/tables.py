@@ -147,6 +147,13 @@ class Subscription(Base):
     current_period_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
+    # Durable high-water mark of usage already pushed to Stripe's Billing Meter,
+    # for the calendar month `metered_usage_period` ("YYYYMM"). Lives in Postgres
+    # (not Redis) so it can't be evicted independently of the ephemeral usage
+    # counter — the delta-push would otherwise re-push a whole month and Stripe,
+    # summing additive meter events, would DOUBLE-BILL (Phase 14 fix, §9).
+    metered_usage_reported: Mapped[int] = mapped_column(Integer, default=0)
+    metered_usage_period: Mapped[str | None] = mapped_column(String(6), default=None)
 
 
 class UptimeMonitor(Base):
