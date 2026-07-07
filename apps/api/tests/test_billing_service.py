@@ -12,6 +12,7 @@ from uuid import UUID
 
 import fakeredis.aioredis
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import FREE_MONTHLY_VIEWS, settings
@@ -227,6 +228,43 @@ async def test_report_usage_pushes_delta_and_never_double_counts(
     async with session_factory() as s:
         assert await billing.report_usage_to_stripe(s, redis, NOW) == 1
     assert pushes[-1] == ("cus_x", 300)
+    await redis.aclose()
+
+
+async def test_report_usage_marker_is_durable_across_redis_loss(
+    session_factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The "already reported" high-water mark lives in Postgres, so a Redis flush
+    # (counter reset to 0) can't make the next run re-push a whole month — that
+    # would double-bill via Stripe's additive meter (§9). Worst case is
+    # under-billing (delta ≤ 0 → skip), never over.
+    monkeypatch.setattr(settings, "stripe_price_metered", "price_metered")
+    acc_id = await _seed_metered_sub(session_factory)
+    redis = await _fake_redis()
+    pushes: list[tuple[str, int]] = []
+
+    async def fake_push(customer_id: str, value: int) -> None:
+        pushes.append((customer_id, value))
+
+    monkeypatch.setattr(billing, "_push_meter_event", fake_push)
+
+    await redis.set(billing.usage_key(acc_id, NOW), 5_000)
+    async with session_factory() as s:
+        assert await billing.report_usage_to_stripe(s, redis, NOW) == 1
+    assert pushes == [("cus_x", 5_000)]
+
+    # Simulate a Redis flush: the ephemeral counter is gone, the Postgres marker
+    # is NOT. The re-run must NOT re-push (would double-bill).
+    await redis.delete(billing.usage_key(acc_id, NOW))
+    async with session_factory() as s:
+        assert await billing.report_usage_to_stripe(s, redis, NOW) == 0
+    assert len(pushes) == 1  # no phantom re-push of the whole month
+
+    # The durable marker survived in Postgres.
+    async with session_factory() as s:
+        sub = await s.scalar(select(Subscription))
+        assert sub.metered_usage_reported == 5_000
+        assert sub.metered_usage_period == f"{NOW:%Y%m}"
     await redis.aclose()
 
 

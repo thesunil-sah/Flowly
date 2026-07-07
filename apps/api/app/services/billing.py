@@ -270,7 +270,11 @@ async def create_checkout_session(session: AsyncSession, account: Account) -> st
     _configure_stripe()
     if not settings.stripe_price_metered:
         raise BillingError("Billing is not configured on this server.")
-    if account.status in ("active", "past_due"):
+    # Block Checkout for ANY already-entitled account — active, past-due, OR an
+    # in-window trial. Guarding only active/past_due let a *trialing* user re-run
+    # Checkout and mint a SECOND live subscription (double billing); a trial is
+    # `metered` too, so gate on the derived entitlement, not a status subset.
+    if effective_plan(account, datetime.now(UTC)) == PAID_PLAN:
         raise BillingError(
             "You already have an active subscription. Use the customer portal to change plans."
         )
@@ -313,15 +317,15 @@ async def create_portal_session(session: AsyncSession, account: Account) -> str:
 # --- Usage push to Stripe (Redis truth → Stripe meter) -------------------
 # Redis stays the real-time source of truth for usage; Stripe's Billing Meter is
 # fed periodically (a worker) so it can bill the graduated tiers. Meter events
-# are *additive* (Stripe sums them), so we push the DELTA since the last push and
-# remember what we've reported this month — re-running never double-counts.
-def _reported_key(account_id: UUID, now: datetime) -> str:
-    return f"usage_reported:{account_id}:{now:%Y%m}"
-
-
-async def _reported_usage(redis: Redis, account_id: UUID, now: datetime) -> int:
-    raw = await redis.get(_reported_key(account_id, now))
-    return int(raw) if raw else 0
+# are *additive* (Stripe sums them), so we push the DELTA since the last push.
+#
+# The "already reported" high-water mark lives in **Postgres** (on the
+# Subscription mirror), NOT Redis: if it could be evicted independently of the
+# ephemeral usage counter, the next run would re-push a whole month and Stripe
+# would double-bill (§9). With a durable marker the worst case on a Redis flush
+# is *under*-billing (counter resets < marker → delta ≤ 0 → skip), never over.
+def _period(now: datetime) -> str:
+    return f"{now:%Y%m}"
 
 
 async def _push_meter_event(customer_id: str, value: int) -> None:
@@ -339,14 +343,16 @@ async def report_usage_to_stripe(
 
     Best-effort per account: one failure (Stripe hiccup) is logged and never
     aborts the sweep. Only entitled (metered) accounts with a Stripe customer are
-    pushed. The delta is `current_month_usage - already_reported`; the reported
-    marker is advanced only after a successful push, so a failed push retries the
-    same delta next run rather than losing it.
+    pushed. The delta is `current_month_usage - already_reported`, where
+    `already_reported` is the DURABLE Postgres high-water mark for this calendar
+    month (reset on rollover). The marker is advanced only after a successful
+    push, so a failed push retries the same delta next run rather than losing it.
     """
     now = now or datetime.now(UTC)
     if not settings.stripe_price_metered:
         return 0
     _configure_stripe()
+    period = _period(now)
     subs = (await session.scalars(select(Subscription))).all()
     pushed = 0
     for sub in subs:
@@ -356,17 +362,26 @@ async def report_usage_to_stripe(
         if account is None or effective_plan(account, now) != PAID_PLAN:
             continue
         current = await get_usage(redis, account.id, now)
-        reported = await _reported_usage(redis, account.id, now)
+        # A new calendar month starts the high-water mark fresh (Stripe's own
+        # meter resets per billing period); within a month it's the stored value.
+        reported = sub.metered_usage_reported if sub.metered_usage_period == period else 0
         delta = current - reported
         if delta <= 0:
+            # Nothing new to bill. Still roll the marker into the new month so a
+            # later push this month measures its delta from 0, not last month.
+            if sub.metered_usage_period != period:
+                sub.metered_usage_period = period
+                sub.metered_usage_reported = current
             continue
         try:
             await _push_meter_event(sub.stripe_customer_id, delta)
         except Exception:
             logger.exception("usage push to Stripe failed for account %s", account.id)
             continue
-        await redis.set(_reported_key(account.id, now), current, ex=_USAGE_TTL_SECONDS)
+        sub.metered_usage_reported = current
+        sub.metered_usage_period = period
         pushed += 1
+    await session.commit()
     logger.info("usage push complete; %s accounts reported", pushed)
     return pushed
 
