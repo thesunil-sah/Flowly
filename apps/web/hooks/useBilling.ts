@@ -4,14 +4,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   apiFetch,
-  type BillingInterval,
-  type BillingTier,
   type CheckoutResponse,
   type PortalResponse,
   type UsageSummary,
 } from "@/lib/api";
 
-/** Current-month usage vs the account's effective plan quota. */
+/** Current-month usage vs the free monthly allotment (Phase 14 metered). */
 export function useUsage() {
   return useQuery({
     queryKey: ["billing", "usage"],
@@ -19,14 +17,10 @@ export function useUsage() {
   });
 }
 
-/** Start Checkout for a tier + interval, then redirect the browser to Stripe. */
+/** Start Checkout for the single metered plan, then redirect the browser to Stripe. */
 export function useCheckout() {
   return useMutation({
-    mutationFn: (v: { tier: BillingTier; interval: BillingInterval }) =>
-      apiFetch<CheckoutResponse>("/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify(v),
-      }),
+    mutationFn: () => apiFetch<CheckoutResponse>("/billing/checkout", { method: "POST" }),
     onSuccess: (data) => {
       window.location.href = data.url;
     },

@@ -295,13 +295,6 @@ class PublicSiteOut(BaseModel):
 
 
 # --- Billing (Phase 7) ----------------------------------------------------
-class CheckoutRequest(BaseModel):
-    """Start a subscription for a tier + billing interval."""
-
-    tier: Literal["pro", "business"]
-    interval: Literal["monthly", "annual"] = "monthly"
-
-
 class CheckoutResponse(BaseModel):
     """A Stripe Checkout URL to redirect the browser to."""
 
@@ -315,13 +308,13 @@ class PortalResponse(BaseModel):
 
 
 class UsageSummary(BaseModel):
-    """Current-month usage vs the account's effective plan quota."""
+    """Current-month usage vs the free monthly allotment (Phase 14 metered)."""
 
-    plan: str
-    quota: int
+    plan: str  # "free" | "metered"
+    quota: int  # the free monthly allotment (what `pct` is measured against)
     used: int
     pct: float
-    status: str  # "ok" | "warning" (>=80%) | "over" (>=100%)
+    status: str  # "ok" | "warning" (≥80% of free) | "locked" (>free)
 
 
 # --- Stats (Phase 5) ------------------------------------------------------

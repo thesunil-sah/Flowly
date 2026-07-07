@@ -120,6 +120,9 @@ function AddStep({ onCreated }: { onCreated: (site: Site) => void }) {
   );
 }
 
+// Matches the server cap (config.MAX_SITES_PER_ACCOUNT / services/sites.py).
+const MAX_SITES = 5;
+
 export default function SitesPage() {
   const { data: sites, isLoading } = useSites();
   // The site whose install/status screen is open; null shows the list + add form.
@@ -133,6 +136,8 @@ export default function SitesPage() {
     );
   }
 
+  const atLimit = (sites?.length ?? 0) >= MAX_SITES;
+
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       {viewing ? (
@@ -140,7 +145,13 @@ export default function SitesPage() {
       ) : (
         <>
           {sites && sites.length > 0 ? <SiteList sites={sites} onOpen={setViewing} /> : null}
-          <AddStep onCreated={setViewing} />
+          {atLimit ? (
+            <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+              You&apos;ve reached the maximum of {MAX_SITES} sites. Remove one to add another.
+            </div>
+          ) : (
+            <AddStep onCreated={setViewing} />
+          )}
         </>
       )}
     </div>

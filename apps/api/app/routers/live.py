@@ -26,7 +26,8 @@ from app.core.exceptions import AppError
 from app.core.security import access_token_expiry, decode_token
 from app.db import postgres
 from app.db.redis import get_client
-from app.services import live, sites
+from app.models.tables import Account
+from app.services import billing, live, sites
 
 logger = logging.getLogger("flowly.live")
 
@@ -80,9 +81,18 @@ async def _authorize(ws: WebSocket, site_id: str) -> str | None:
     # (Redis-only) streaming loop so no Postgres connection is pinned per socket.
     async with postgres.async_session_factory() as session:
         site = await sites.get_owned_site(session, site_id, account_id)
-    if site is None:
-        await ws.close(code=_WS_POLICY_VIOLATION)
-        return None
+        if site is None:
+            await ws.close(code=_WS_POLICY_VIOLATION)
+            return None
+        # Live is a gated dashboard read: a locked free account can't open it
+        # (Phase 14). Ingestion is never gated, so events still flow underneath.
+        account = await session.get(Account, account_id)
+    if account is not None:
+        now = datetime.now(UTC)
+        used = await billing.get_usage(get_client(), account.id, now)
+        if billing.is_locked(account, used, now):
+            await ws.close(code=_WS_POLICY_VIOLATION)
+            return None
     return token
 
 

@@ -129,9 +129,7 @@ async def _seed_account(
     session_factory: async_sessionmaker[AsyncSession], plan: str, status: str, site_id: str
 ) -> UUID:
     async with session_factory() as s:
-        acc = Account(
-            email=f"{site_id}@example.com", username=site_id, plan=plan, status=status
-        )
+        acc = Account(email=f"{site_id}@example.com", username=site_id, plan=plan, status=status)
         s.add(acc)
         await s.flush()
         s.add(Site(account_id=acc.id, site_id=site_id, domain=f"{site_id}.com"))
@@ -142,7 +140,7 @@ async def _seed_account(
 async def test_city_dimension_gated_for_free_account(
     client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
-    acc_id = await _seed_account(session_factory, "free", "active", "freesite")
+    acc_id = await _seed_account(session_factory, "free", "free", "freesite")
     ch = MockClickHouse(_BREAKDOWN_ROW)
     app.dependency_overrides[get_clickhouse] = lambda: ch
     token = create_access_token(acc_id)
@@ -158,7 +156,7 @@ async def test_city_dimension_gated_for_free_account(
 async def test_city_dimension_allowed_for_paid_account(
     client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
-    acc_id = await _seed_account(session_factory, "pro", "active", "prosite")
+    acc_id = await _seed_account(session_factory, "metered", "active", "prosite")
     app.dependency_overrides[get_clickhouse] = lambda: MockClickHouse(_BREAKDOWN_ROW)
     token = create_access_token(acc_id)
     resp = await client.get(

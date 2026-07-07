@@ -39,6 +39,12 @@ class _NullSession:
     async def __aexit__(self, *_: object) -> bool:
         return False
 
+    async def get(self, *_: object) -> None:
+        # The Phase 14 lock check loads the Account here; these tests exercise
+        # origin/token/ownership, so returning None skips the lock (account
+        # absent → not locked). Lock behavior is covered in the billing tests.
+        return None
+
 
 @pytest.fixture
 def fake_redis(monkeypatch: pytest.MonkeyPatch) -> fakeredis.aioredis.FakeRedis:

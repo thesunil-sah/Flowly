@@ -6,7 +6,7 @@ router/handlers map them to HTTP.
 """
 
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from redis.asyncio import Redis
@@ -28,8 +28,6 @@ from app.models.schemas import TokenResponse
 from app.models.tables import Account, Identity
 from app.services import verification
 from app.services.oauth import OAuthError, OAuthProfile
-
-TRIAL_DAYS = 7
 
 # A fixed dummy hash so login runs an argon2 verify even when the identifier is
 # unknown — equalizing timing so we don't leak which accounts exist.
@@ -73,9 +71,11 @@ async def signup(
         email=email,
         password_hash=hash_password(password),
         email_verified_at=None,
-        plan="pro",
-        status="trialing",
-        trial_ends_at=datetime.now(UTC) + timedelta(days=TRIAL_DAYS),
+        # Phase 14: accounts start free — the 7-day trial now begins at upgrade
+        # (Checkout), once per account, not at signup.
+        plan="free",
+        status="free",
+        trial_ends_at=None,
     )
     session.add(account)
     try:
@@ -178,9 +178,10 @@ async def oauth_login(session: AsyncSession, profile: OAuthProfile) -> Account:
         email=profile.email,
         password_hash=None,
         email_verified_at=datetime.now(UTC) if profile.email_verified else None,
-        plan="pro",
-        status="trialing",
-        trial_ends_at=datetime.now(UTC) + timedelta(days=TRIAL_DAYS),
+        # Phase 14: start free; the trial begins at upgrade, not signup.
+        plan="free",
+        status="free",
+        trial_ends_at=None,
     )
     session.add(account)
     await session.flush()

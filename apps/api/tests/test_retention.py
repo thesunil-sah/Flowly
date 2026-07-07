@@ -12,14 +12,13 @@ NOW = datetime(2026, 7, 4, 12, 0, tzinfo=UTC)
 
 def test_retention_days_per_plan() -> None:
     assert retention.retention_days("free") == 30
-    assert retention.retention_days("pro") == 365
-    assert retention.retention_days("business") == 730
+    assert retention.retention_days("metered") == 365
     assert retention.retention_days("mystery") == 30  # unknown -> free window
 
 
 def test_cutoff_for_subtracts_window() -> None:
     assert retention.cutoff_for("free", NOW) == NOW - timedelta(days=30)
-    assert retention.cutoff_for("pro", NOW) == NOW - timedelta(days=365)
+    assert retention.cutoff_for("metered", NOW) == NOW - timedelta(days=365)
 
 
 def test_build_delete_query_is_site_scoped_and_parameterized() -> None:
@@ -45,12 +44,12 @@ async def test_worker_deletes_per_site_with_plan_specific_cutoff(
     session_factory, monkeypatch
 ) -> None:
     async with session_factory() as s:
-        free = Account(email="f@e.com", username="f", plan="free", status="active")
-        pro = Account(email="p@e.com", username="p", plan="pro", status="active")
-        s.add_all([free, pro])
+        free = Account(email="f@e.com", username="f", plan="free", status="free")
+        paid = Account(email="p@e.com", username="p", plan="metered", status="active")
+        s.add_all([free, paid])
         await s.flush()
         s.add(Site(account_id=free.id, site_id="free-site", domain="f.com"))
-        s.add(Site(account_id=pro.id, site_id="pro-site", domain="p.com"))
+        s.add(Site(account_id=paid.id, site_id="paid-site", domain="p.com"))
         await s.commit()
 
     ch = MockCH()
@@ -66,16 +65,16 @@ async def test_worker_deletes_per_site_with_plan_specific_cutoff(
     by_site = {params["site_id"]: params["cutoff"] for _sql, params in ch.commands}
     # Each site got its own cutoff, derived from its owner's plan.
     assert by_site["free-site"] == NOW - timedelta(days=30)
-    assert by_site["pro-site"] == NOW - timedelta(days=365)
+    assert by_site["paid-site"] == NOW - timedelta(days=365)
 
 
 async def test_worker_uses_free_window_for_lapsed_trial(session_factory, monkeypatch) -> None:
-    # plan="pro" but the trial has ended with no active sub -> effectively free.
+    # An ended trial with no active sub -> effectively free (30d window).
     async with session_factory() as s:
         acc = Account(
             email="l@e.com",
             username="l",
-            plan="pro",
+            plan="metered",
             status="trialing",
             trial_ends_at=NOW - timedelta(days=1),
         )

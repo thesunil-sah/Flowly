@@ -15,11 +15,9 @@ import { useCheckout } from "@/hooks/useBilling";
 import { FREE_MONTHLY_VIEWS } from "@/lib/pricing";
 import { formatNumber } from "@/lib/format";
 
-// The metered-upgrade surface (F5). Built now, driven by usage_summary flags;
-// Phase 14 wires it as a NON-dismissible dashboard gate when status==="locked"
-// (402 on stats/live) and swaps the CTA to the single metered Price + 7-day
-// trial. Until then the CTA reuses the existing flat Checkout so the upgrade
-// path stays functional.
+// The metered-upgrade surface. Driven by usage_summary flags: rendered as a
+// NON-dismissible dashboard gate when status==="locked" (the server also 402s
+// stats/live). The CTA opens Checkout for the single metered Price + 7-day trial.
 const PERKS = [
   "Keep every report + live traffic",
   "The rate falls as you scale — no plan cliffs",
@@ -70,7 +68,7 @@ export function PaywallModal({
         <Button
           className="w-full"
           disabled={checkout.isPending}
-          onClick={() => checkout.mutate({ tier: "pro", interval: "monthly" })}
+          onClick={() => checkout.mutate()}
         >
           {checkout.isPending ? "Opening checkout…" : "Start your 7-day free trial"}
         </Button>

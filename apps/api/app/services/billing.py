@@ -23,16 +23,18 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import HARD_CEILING_MULTIPLE, PLAN_QUOTAS, settings
-from app.core.exceptions import BillingError, UpgradeRequiredError, ValidationError
+from app.config import FREE_MONTHLY_VIEWS, settings
+from app.core.exceptions import AccountLockedError, BillingError, UpgradeRequiredError
 from app.models.tables import Account, Subscription
 from app.services.email import send_email
 
 logger = logging.getLogger("flowly.billing")
 
-# The free tier is both the entry plan and the fallback when entitlement lapses
-# (expired trial with no sub, or a canceled subscription).
+# Two entitlement states under metered billing (Phase 14): `free` (no active
+# subscription — the entry state and the fallback when a sub lapses/cancels) and
+# `metered` (an active/trialing/past-due metered subscription).
 FREE_PLAN = "free"
+PAID_PLAN = "metered"
 
 # Audience dimensions gated to paying accounts (Phase 11). City comes from the
 # GeoLite2-City lookup; it's the first premium report. Enforced at read time on
@@ -105,10 +107,9 @@ async def meter_pageview(redis: Redis, site_id: str, now: datetime) -> None:
     rather than blocking the hot path. Callers wrap this best-effort; a Redis
     error is swallowed.
 
-    NB: the absolute hard ceiling is NOT enforced here — that would need
-    `account.plan` (a Postgres read) per event. Burst cost is already bounded by
-    the per-site rate limit (Phase 3); `over_hard_ceiling` is available for a
-    future async/worker sweep. The hot path only meters.
+    NB: metering NEVER gates ingestion (Phase 14, §9). The paywall locks the
+    *dashboard* on the read side (`ensure_not_locked`); `/collect` keeps counting
+    and returning 202 even for a locked account, so its charts stay hole-free.
     """
     account_id = await cached_account_id(redis, site_id)
     if account_id is None:
@@ -129,20 +130,21 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 def effective_plan(account: Account, now: datetime) -> str:
-    """The tier the account is actually entitled to right now.
+    """The entitlement state the account is actually in right now — `metered` or
+    `free`.
 
     Entitlement is derived, never separately stored: an active or past-due
-    subscription (past-due keeps serving — §10) grants `account.plan`; an
-    in-window trial grants `account.plan`; anything else — a lapsed card-free
-    trial or a canceled subscription — falls back to `free`. This is why a
-    never-paid expired trial needs no webhook to "downgrade" it.
+    subscription (past-due keeps serving — §10) is `metered`; an in-window trial
+    is `metered`; anything else — a lapsed card-free trial or a canceled
+    subscription — falls back to `free`. This is why a never-paid expired trial
+    needs no webhook to "downgrade" it.
     """
     if account.status in ("active", "past_due"):
-        return account.plan
+        return PAID_PLAN
     if account.status == "trialing" and (
         account.trial_ends_at is None or _as_utc(account.trial_ends_at) > now
     ):
-        return account.plan
+        return PAID_PLAN
     return FREE_PLAN
 
 
@@ -156,25 +158,41 @@ def require_dimension_access(account: Account, dimension: str, now: datetime) ->
         raise UpgradeRequiredError()
 
 
-def quota_for(plan: str) -> int:
-    """Monthly pageview quota for a plan (unknown plans fall back to free)."""
-    return PLAN_QUOTAS.get(plan, PLAN_QUOTAS[FREE_PLAN])
+def is_locked(account: Account, used: int, now: datetime) -> bool:
+    """True when a FREE account has passed the free monthly-view limit (Phase 14).
 
-
-def over_hard_ceiling(used: int, quota: int) -> bool:
-    """True past the absolute drop ceiling (a runaway/abuse guard, not the quota).
-
-    Below this the soft cap keeps ingesting (§9: never drop a paying customer's
-    data); only this pathological threshold drops events.
+    A locked account's *dashboard* reads are gated (blocking paywall + 402);
+    ingestion is never gated (§9). A paying (metered) account is never locked —
+    it's billed for the overage, not walled off.
     """
-    return used >= quota * HARD_CEILING_MULTIPLE
+    return effective_plan(account, now) == FREE_PLAN and used > FREE_MONTHLY_VIEWS
 
 
-def usage_status(used: int, quota: int) -> str:
-    """`ok` | `warning` (>=80%) | `over` (>=100%) — drives the dashboard nudge."""
-    if quota <= 0 or used >= quota:
-        return "over"
-    if used >= quota * _WARNING_FRACTION:
+async def ensure_not_locked(redis: Redis, account: Account, now: datetime | None = None) -> None:
+    """Raise `AccountLockedError` (402) if the account is locked (Phase 14).
+
+    The server-side half of the paywall: every gated dashboard read (stats, live,
+    public share, CSV export) calls this so the wall isn't UI-only (§9). Ingestion
+    (`/collect`) NEVER calls it — a locked account keeps its charts hole-free.
+    """
+    now = now or datetime.now(UTC)
+    used = await get_usage(redis, account.id, now)
+    if is_locked(account, used, now):
+        raise AccountLockedError()
+
+
+def usage_status(plan: str, used: int) -> str:
+    """`ok` | `warning` (≥80% of free) | `locked` (>free) — drives the UI.
+
+    Only free accounts warn/lock; a metered account is always `ok` (its banner
+    shows a running bill estimate instead, computed client-side from the same
+    graduated schedule).
+    """
+    if plan != FREE_PLAN:
+        return "ok"
+    if used > FREE_MONTHLY_VIEWS:
+        return "locked"
+    if used >= FREE_MONTHLY_VIEWS * _WARNING_FRACTION:
         return "warning"
     return "ok"
 
@@ -184,27 +202,30 @@ async def usage_summary(
 ) -> dict[str, object]:
     """The `/billing/usage` payload: plan, quota, used, pct, status.
 
-    Read-time only — the hot path never computes this. `pct` is rounded so the
+    Read-time only — the hot path never computes this. `quota` is the free
+    monthly allotment (what `pct` is measured against); `pct` is rounded so the
     UI never shows a float artifact (§4).
     """
     now = now or datetime.now(UTC)
     plan = effective_plan(account, now)
-    quota = quota_for(plan)
     used = await get_usage(redis, account.id, now)
+    quota = FREE_MONTHLY_VIEWS
     pct = round(used / quota * 100, 1) if quota > 0 else 100.0
     return {
         "plan": plan,
         "quota": quota,
         "used": used,
         "pct": pct,
-        "status": usage_status(used, quota),
+        "status": usage_status(plan, used),
     }
 
 
 # --- Stripe (entitlement) -------------------------------------------------
 # All entitlement (account.plan/status) is granted ONLY by the webhook handlers
 # below, from a signature-verified event — never from a Checkout redirect (§10).
-_INTERVALS = ("monthly", "annual")
+
+# The repositioned 7-day trial (Phase 14) — starts at upgrade, once per account.
+TRIAL_DAYS = 7
 
 
 def _configure_stripe() -> None:
@@ -212,41 +233,34 @@ def _configure_stripe() -> None:
     stripe.api_key = settings.stripe_secret_key
 
 
-def _price_id(tier: str, interval: str) -> str:
-    """Resolve a (tier, interval) to its configured Stripe price id, or 422."""
-    prices = {
-        ("pro", "monthly"): settings.stripe_price_pro,
-        ("pro", "annual"): settings.stripe_price_pro_annual,
-        ("business", "monthly"): settings.stripe_price_business,
-        ("business", "annual"): settings.stripe_price_business_annual,
-    }
-    price = prices.get((tier, interval))
-    if not price:
-        raise ValidationError("Unknown plan or billing interval.")
-    return price
-
-
 def _tier_for_price(price_id: str) -> str:
-    """Reverse a Stripe price id to its plan tier (unknown/empty -> free)."""
-    mapping = {
-        settings.stripe_price_pro: "pro",
-        settings.stripe_price_pro_annual: "pro",
-        settings.stripe_price_business: "business",
-        settings.stripe_price_business_annual: "business",
-    }
-    mapping.pop("", None)  # empty (unconfigured) ids must never match
-    return mapping.get(price_id, FREE_PLAN)
+    """Reverse a Stripe price id to its entitlement state (unknown/empty → free)."""
+    metered = settings.stripe_price_metered
+    if metered and price_id == metered:
+        return PAID_PLAN
+    return FREE_PLAN
 
 
-async def create_checkout_session(
-    session: AsyncSession, account: Account, tier: str, interval: str
-) -> str:
-    """A Stripe Checkout URL for `account` to subscribe to (tier, interval).
+def _has_used_trial(account: Account) -> bool:
+    """Whether this account has already consumed its one lifetime trial.
+
+    Recorded by stamping `trial_ends_at` when a trial starts (the trialing
+    webhook), so a re-subscribe after a canceled/expired trial gets no second
+    one. The trial no longer starts at signup (Phase 14) — a brand-new account
+    has `trial_ends_at is None`.
+    """
+    return account.trial_ends_at is not None
+
+
+async def create_checkout_session(session: AsyncSession, account: Account) -> str:
+    """A Stripe Checkout URL for `account` to start the metered subscription.
 
     `client_reference_id` + subscription metadata carry the account id so the
     webhook can attribute the resulting subscription regardless of event order.
-    During an in-window trial we pass `trial_end` so Stripe neither starts a
-    second trial nor charges early (§10); a lapsed trial subscribes immediately.
+    A first-time subscriber gets the 7-day trial (§10 — repositioned to upgrade);
+    an account that already used its trial subscribes immediately (one per
+    account). The metered line item carries no quantity — usage is metered to the
+    Billing Meter, not set at Checkout.
 
     An account that already has an active/past-due subscription is sent to the
     Customer Portal instead — re-running Checkout would mint a *second* live
@@ -254,18 +268,19 @@ async def create_checkout_session(
     Stripe customer, it's reused so Checkout can't create a duplicate customer.
     """
     _configure_stripe()
-    price = _price_id(tier, interval)
+    if not settings.stripe_price_metered:
+        raise BillingError("Billing is not configured on this server.")
     if account.status in ("active", "past_due"):
         raise BillingError(
             "You already have an active subscription. Use the customer portal to change plans."
         )
     sub_data: dict[str, Any] = {"metadata": {"account_id": str(account.id)}}
-    now = datetime.now(UTC)
-    if account.trial_ends_at is not None and account.trial_ends_at > now:
-        sub_data["trial_end"] = int(account.trial_ends_at.timestamp())
+    if not _has_used_trial(account):
+        sub_data["trial_period_days"] = TRIAL_DAYS
     params: dict[str, Any] = {
         "mode": "subscription",
-        "line_items": [{"price": price, "quantity": 1}],
+        # Metered price → no `quantity` (Stripe meters usage from meter events).
+        "line_items": [{"price": settings.stripe_price_metered}],
         "client_reference_id": str(account.id),
         "subscription_data": sub_data,
         "success_url": f"{settings.web_base_url}/billing?checkout=success",
@@ -293,6 +308,67 @@ async def create_portal_session(session: AsyncSession, account: Account) -> str:
         return_url=f"{settings.web_base_url}/billing",
     )
     return portal.url
+
+
+# --- Usage push to Stripe (Redis truth → Stripe meter) -------------------
+# Redis stays the real-time source of truth for usage; Stripe's Billing Meter is
+# fed periodically (a worker) so it can bill the graduated tiers. Meter events
+# are *additive* (Stripe sums them), so we push the DELTA since the last push and
+# remember what we've reported this month — re-running never double-counts.
+def _reported_key(account_id: UUID, now: datetime) -> str:
+    return f"usage_reported:{account_id}:{now:%Y%m}"
+
+
+async def _reported_usage(redis: Redis, account_id: UUID, now: datetime) -> int:
+    raw = await redis.get(_reported_key(account_id, now))
+    return int(raw) if raw else 0
+
+
+async def _push_meter_event(customer_id: str, value: int) -> None:
+    """Send one additive usage delta to the Stripe Billing Meter."""
+    await stripe.billing.MeterEvent.create_async(
+        event_name=settings.stripe_meter_event,
+        payload={"stripe_customer_id": customer_id, "value": str(value)},
+    )
+
+
+async def report_usage_to_stripe(
+    session: AsyncSession, redis: Redis, now: datetime | None = None
+) -> int:
+    """Push each metered account's usage delta to Stripe. Returns accounts pushed.
+
+    Best-effort per account: one failure (Stripe hiccup) is logged and never
+    aborts the sweep. Only entitled (metered) accounts with a Stripe customer are
+    pushed. The delta is `current_month_usage - already_reported`; the reported
+    marker is advanced only after a successful push, so a failed push retries the
+    same delta next run rather than losing it.
+    """
+    now = now or datetime.now(UTC)
+    if not settings.stripe_price_metered:
+        return 0
+    _configure_stripe()
+    subs = (await session.scalars(select(Subscription))).all()
+    pushed = 0
+    for sub in subs:
+        if not sub.stripe_customer_id:
+            continue
+        account = await session.get(Account, sub.account_id)
+        if account is None or effective_plan(account, now) != PAID_PLAN:
+            continue
+        current = await get_usage(redis, account.id, now)
+        reported = await _reported_usage(redis, account.id, now)
+        delta = current - reported
+        if delta <= 0:
+            continue
+        try:
+            await _push_meter_event(sub.stripe_customer_id, delta)
+        except Exception:
+            logger.exception("usage push to Stripe failed for account %s", account.id)
+            continue
+        await redis.set(_reported_key(account.id, now), current, ex=_USAGE_TTL_SECONDS)
+        pushed += 1
+    logger.info("usage push complete; %s accounts reported", pushed)
+    return pushed
 
 
 def verify_webhook(payload: bytes, signature: str | None) -> stripe.Event:
@@ -349,6 +425,13 @@ async def _upsert_subscription(session: AsyncSession, account: Account, obj: Any
 
     account.plan = tier
     account.status = status
+
+    # Stamp when a trial ends so the account can't get a second one (one trial
+    # per account, Phase 14). `trial_end` is only present while/after a trial;
+    # once set we never clear it, so a re-subscribe skips the trial.
+    trial_end = _to_dt(obj.get("trial_end"))
+    if trial_end is not None:
+        account.trial_ends_at = trial_end
 
     sub = await _subscription_for_account(session, account.id)
     if sub is None:

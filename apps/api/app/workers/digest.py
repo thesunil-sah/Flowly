@@ -21,7 +21,7 @@ from redis.asyncio import Redis
 from app.db.clickhouse import close_clickhouse, get_clickhouse
 from app.db.postgres import async_session_factory, dispose_engine
 from app.db.redis import close_redis, get_client
-from app.services import digest, notifications, sites
+from app.services import billing, digest, notifications, sites
 
 logger = logging.getLogger("flowly.digest")
 
@@ -54,6 +54,11 @@ async def run(now: datetime | None = None) -> int:
         accounts = await notifications.marketing_recipients(session)
         for account in accounts:
             if await _already_sent(redis, account.id, now):
+                continue
+            # A locked (over-limit free) account's digest follows the paywall —
+            # the digest reads the same gated data, so skip it (Phase 14, §9).
+            used = await billing.get_usage(redis, account.id, now)
+            if billing.is_locked(account, used, now):
                 continue
             owned = await sites.list_account_sites(session, account.id)
             if not owned:

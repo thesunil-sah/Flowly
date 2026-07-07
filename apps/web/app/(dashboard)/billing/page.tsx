@@ -24,7 +24,7 @@ function UsageEstimateCard() {
 
   const pct = Math.min(100, Math.round(data.pct));
   const barColor =
-    data.status === "over" || data.status === "locked"
+    data.status === "locked"
       ? "bg-destructive"
       : data.status === "warning"
         ? "bg-warning"

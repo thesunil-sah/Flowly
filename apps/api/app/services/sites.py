@@ -21,8 +21,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.core.exceptions import ConflictError, ValidationError
+from sqlalchemy import func
+
+from app.config import MAX_SITES_PER_ACCOUNT, settings
+from app.core.exceptions import ConflictError, SiteLimitError, ValidationError
 from app.core.urls import normalize_host
 from app.db.clickhouse import query_rows
 from app.models.schemas import SiteOut
@@ -106,6 +108,15 @@ async def create_site(session: AsyncSession, redis: Redis, account_id: UUID, dom
     host = normalize_host(domain)
     if not host:
         raise ValidationError("Enter a valid domain.")
+
+    # Enforce the per-account site cap in the service, not the router (§3). The
+    # count + insert aren't atomic, but the cap is a soft product limit (not a
+    # security boundary), so a rare concurrent double-add landing at 6 is benign.
+    site_count = await session.scalar(
+        select(func.count()).select_from(Site).where(Site.account_id == account_id)
+    )
+    if (site_count or 0) >= MAX_SITES_PER_ACCOUNT:
+        raise SiteLimitError()
 
     existing = await session.scalar(
         select(Site).where(Site.account_id == account_id, Site.domain == host)

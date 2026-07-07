@@ -75,6 +75,47 @@ async def test_digest_worker_is_idempotent_per_week(session_factory, monkeypatch
     await fake.aclose()
 
 
+async def test_digest_worker_skips_locked_account(session_factory, monkeypatch) -> None:
+    # A locked (over-limit free) account's digest reads the same gated data, so
+    # the worker skips it — the paywall side door stays closed (Phase 14, §9).
+    from app.config import FREE_MONTHLY_VIEWS
+    from app.models.tables import Account, Site
+    from app.services import billing
+
+    async with session_factory() as s:
+        acc = Account(
+            email="lk@e.com", username="lk", email_verified_at=NOW, plan="free", status="free"
+        )
+        s.add(acc)
+        await s.flush()
+        s.add(Site(account_id=acc.id, site_id="publk", domain="lk.com"))
+        await s.commit()
+        acc_id = acc.id
+
+    fake = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    await fake.set(billing.usage_key(acc_id, NOW), FREE_MONTHLY_VIEWS + 1)  # locked
+    sent: list[str] = []
+
+    async def fake_ch():
+        return object()
+
+    async def fake_build(client, site_id, domain, now):
+        return SiteDigest(domain=domain, visitors=10, pageviews=20, visitors_change_pct=None)
+
+    async def fake_send(to, subject, text, html=None):
+        sent.append(to)
+
+    monkeypatch.setattr(digest_worker, "get_clickhouse", fake_ch)
+    monkeypatch.setattr(digest_worker, "get_client", lambda: fake)
+    monkeypatch.setattr(digest_worker, "async_session_factory", session_factory)
+    monkeypatch.setattr(digest, "build_site_digest", fake_build)
+    monkeypatch.setattr(notifications, "send_email", fake_send)
+
+    assert await digest_worker.run(NOW) == 0  # locked → skipped
+    assert sent == []
+    await fake.aclose()
+
+
 async def test_digest_worker_skips_zero_traffic_account(session_factory, monkeypatch) -> None:
     from app.models.tables import Account, Site
 
