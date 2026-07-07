@@ -44,8 +44,18 @@ async def session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessio
 
 
 @pytest_asyncio.fixture
+async def redis_client() -> AsyncIterator[fakeredis.aioredis.FakeRedis]:
+    """The fake Redis the `client` app uses — exposed so a test can seed usage
+    counters (Phase 14 paywall) or presence and see the same store the app reads."""
+    fake = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    yield fake
+    await fake.aclose()
+
+
+@pytest_asyncio.fixture
 async def client(
     session_factory: async_sessionmaker[AsyncSession],
+    redis_client: fakeredis.aioredis.FakeRedis,
 ) -> AsyncIterator[AsyncClient]:
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as s:
@@ -56,10 +66,8 @@ async def client(
                 await s.rollback()
                 raise
 
-    fake = fakeredis.aioredis.FakeRedis(decode_responses=True)
-
     async def override_redis() -> fakeredis.aioredis.FakeRedis:
-        return fake
+        return redis_client
 
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_redis] = override_redis
@@ -67,4 +75,3 @@ async def client(
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
-    await fake.aclose()

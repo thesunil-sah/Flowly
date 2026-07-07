@@ -33,9 +33,11 @@ class Account(Base):
     email_verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
-    # Tier vs state are separate: `plan` is the tier, `status` the lifecycle.
-    plan: Mapped[str] = mapped_column(String(32), default="pro")
-    status: Mapped[str] = mapped_column(String(32), default="trialing")
+    # Entitlement is derived from `status` (billing.effective_plan); `plan`
+    # mirrors the current state ("free" | "metered") for display/debugging.
+    # New accounts start free — the trial begins at upgrade, not signup (Phase 14).
+    plan: Mapped[str] = mapped_column(String(32), default="free")
+    status: Mapped[str] = mapped_column(String(32), default="free")
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     # Opt-out flag for non-transactional email (weekly digest, onboarding
     # sequence). Toggled true by the signed unsubscribe link; transactional mail

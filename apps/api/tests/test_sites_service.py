@@ -59,6 +59,21 @@ async def test_create_site_normalizes_domain_and_generates_id(
     assert len(site.site_id) == 16 and all(c in "0123456789abcdef" for c in site.site_id)
 
 
+async def test_site_limit_enforced_at_five_not_at_four(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    from app.config import MAX_SITES_PER_ACCOUNT
+    from app.core.exceptions import SiteLimitError
+
+    account_id = await _new_account(session_factory, "cap@example.com")
+    async with session_factory() as s:
+        # The first MAX (5) sites all succeed — the cap bites only on the 6th.
+        for i in range(MAX_SITES_PER_ACCOUNT):
+            await sites.create_site(s, _redis(), account_id, f"site{i}.com")
+        with pytest.raises(SiteLimitError):
+            await sites.create_site(s, _redis(), account_id, "over.com")
+
+
 async def test_create_site_rejects_empty_domain(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

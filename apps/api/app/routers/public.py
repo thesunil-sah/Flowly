@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -22,6 +23,7 @@ from app.core.statsfilters import FilterDep
 from app.core.timerange import RangeDep
 from app.db.clickhouse import ClickHouseDep
 from app.db.postgres import get_session
+from app.db.redis import get_redis
 from app.models.schemas import (
     BreakdownOut,
     ChannelsOut,
@@ -53,7 +55,21 @@ async def shared_site(
 
 
 SharedSite = Annotated[Site, Depends(shared_site)]
+RedisDep = Annotated[Redis, Depends(get_redis)]
 LimitDep = Annotated[int, Query(ge=1, le=100)]
+
+
+async def unlocked_shared_site(site: SharedSite, session: SessionDep, redis: RedisDep) -> Site:
+    """A shared site whose owner is NOT locked. A locked owner's share link
+    follows the paywall (Phase 14) → 402, so it isn't a side door around the wall
+    (§9). The metadata route stays open so the page can show a paused state."""
+    account = await session.get(Account, site.account_id)
+    if account is not None:
+        await billing.ensure_not_locked(redis, account)
+    return site
+
+
+UnlockedSharedSite = Annotated[Site, Depends(unlocked_shared_site)]
 
 
 @router.get("/{token}")
@@ -70,7 +86,7 @@ async def get_public_meta(site: SharedSite, session: SessionDep) -> PublicSiteOu
 
 @router.get("/{token}/overview")
 async def get_overview(
-    site: SharedSite,
+    site: UnlockedSharedSite,
     date_range: RangeDep,
     filters: FilterDep,
     client: ClickHouseDep,
@@ -81,14 +97,14 @@ async def get_overview(
 
 @router.get("/{token}/timeseries")
 async def get_timeseries(
-    site: SharedSite, date_range: RangeDep, filters: FilterDep, client: ClickHouseDep
+    site: UnlockedSharedSite, date_range: RangeDep, filters: FilterDep, client: ClickHouseDep
 ) -> TimeseriesOut:
     return await stats.timeseries(client, site.site_id, *date_range, filters)
 
 
 @router.get("/{token}/sources")
 async def get_sources(
-    site: SharedSite,
+    site: UnlockedSharedSite,
     date_range: RangeDep,
     filters: FilterDep,
     client: ClickHouseDep,
@@ -99,14 +115,14 @@ async def get_sources(
 
 @router.get("/{token}/channels")
 async def get_channels(
-    site: SharedSite, date_range: RangeDep, filters: FilterDep, client: ClickHouseDep
+    site: UnlockedSharedSite, date_range: RangeDep, filters: FilterDep, client: ClickHouseDep
 ) -> ChannelsOut:
     return await stats.channels(client, site.site_id, *date_range, filters)
 
 
 @router.get("/{token}/channels/{channel}")
 async def get_channel_referrers(
-    site: SharedSite,
+    site: UnlockedSharedSite,
     date_range: RangeDep,
     filters: FilterDep,
     client: ClickHouseDep,
@@ -118,7 +134,7 @@ async def get_channel_referrers(
 
 @router.get("/{token}/heatmap")
 async def get_heatmap(
-    site: SharedSite,
+    site: UnlockedSharedSite,
     date_range: RangeDep,
     filters: FilterDep,
     client: ClickHouseDep,
@@ -129,7 +145,7 @@ async def get_heatmap(
 
 @router.get("/{token}/audience")
 async def get_audience(
-    site: SharedSite,
+    site: UnlockedSharedSite,
     session: SessionDep,
     date_range: RangeDep,
     filters: FilterDep,
@@ -147,7 +163,7 @@ async def get_audience(
 
 @router.get("/{token}/pages")
 async def get_pages(
-    site: SharedSite,
+    site: UnlockedSharedSite,
     date_range: RangeDep,
     filters: FilterDep,
     client: ClickHouseDep,

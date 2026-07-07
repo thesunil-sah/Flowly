@@ -98,19 +98,14 @@ export function gscPath(
   return `/searchconsole/${encodeURIComponent(siteId)}/${report}?${q.toString()}`;
 }
 
-// --- Billing (Phase 7) -----------------------------------------------------
-export type BillingTier = "pro" | "business";
-export type BillingInterval = "monthly" | "annual";
-
+// --- Billing (Phase 14 — metered) ------------------------------------------
 export type UsageSummary = {
-  plan: string;
-  quota: number;
+  plan: string; // "free" | "metered"
+  quota: number; // the free monthly allotment (what `pct` is measured against)
   used: number;
   pct: number;
-  // "locked" is the Phase 14 free-over-limit state (dashboard paywall + 402
-  // gating). The current backend only emits ok|warning|over; the F5 UI renders
-  // the locked branch already so Phase 14 is a backend-only flip.
-  status: "ok" | "warning" | "over" | "locked";
+  // "locked" is the free-over-limit state (dashboard paywall + server 402).
+  status: "ok" | "warning" | "locked";
 };
 
 export type CheckoutResponse = { url: string };
@@ -221,9 +216,12 @@ export function publicStatsPath(
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Stable machine code from the error body (e.g. "account_locked"), if any. */
+  code: string | null;
+  constructor(status: number, message: string, code: string | null = null) {
     super(message);
     this.status = status;
+    this.code = code;
     this.name = "ApiError";
   }
 }
@@ -262,13 +260,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (!resp.ok) {
     if (resp.status === 401) clearTokens();
     let detail = resp.statusText;
+    let code: string | null = null;
     try {
-      const body = (await resp.json()) as { detail?: string };
+      const body = (await resp.json()) as { detail?: string; code?: string };
       if (body.detail) detail = body.detail;
+      if (body.code) code = body.code;
     } catch {
       // non-JSON error body; keep the status text
     }
-    throw new ApiError(resp.status, detail);
+    throw new ApiError(resp.status, detail, code);
   }
 
   if (resp.status === 204) return undefined as T;

@@ -12,6 +12,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -20,6 +21,7 @@ from app.core.statsfilters import FilterDep
 from app.core.timerange import stats_range
 from app.db.clickhouse import ClickHouseDep
 from app.db.postgres import get_session
+from app.db.redis import get_redis
 from app.models.schemas import (
     BreakdownOut,
     ChannelsOut,
@@ -31,9 +33,19 @@ from app.models.schemas import (
 )
 from app.services import billing, export, sites, stats
 
-router = APIRouter(prefix="/stats", tags=["stats"])
-
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+RedisDep = Annotated[Redis, Depends(get_redis)]
+
+
+async def require_unlocked(account: CurrentUser, redis: RedisDep) -> None:
+    """Gate the whole dashboard read surface: a locked free account gets a 402
+    (Phase 14 paywall). Server-side so the wall isn't UI-only (§9); ingestion is
+    never gated."""
+    await billing.ensure_not_locked(redis, account)
+
+
+# Router-level dependency → every stats route (incl. CSV export) is lock-gated.
+router = APIRouter(prefix="/stats", tags=["stats"], dependencies=[Depends(require_unlocked)])
 
 
 async def owned_site(

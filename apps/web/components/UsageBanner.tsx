@@ -37,10 +37,10 @@ export function UsageBanner() {
     );
   }
 
-  // Free accounts: warning → over/locked nudges.
+  // Free accounts: warning → locked nudges.
   if (data.status === "ok") return null;
 
-  const blocked = data.status === "over" || data.status === "locked";
+  const blocked = data.status === "locked";
   const tone = blocked ? "border-destructive/30 bg-destructive/10" : "border-warning/30 bg-warning/10";
   const pct = Math.round(data.pct);
   const message = blocked

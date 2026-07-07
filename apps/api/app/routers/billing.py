@@ -22,7 +22,6 @@ from app.core.security import CurrentUser
 from app.db.postgres import get_session
 from app.db.redis import get_redis
 from app.models.schemas import (
-    CheckoutRequest,
     CheckoutResponse,
     MessageResponse,
     PortalResponse,
@@ -47,11 +46,9 @@ class WebhookSignatureError(AppError):
 
 
 @router.post("/checkout")
-async def checkout(
-    data: CheckoutRequest, account: CurrentUser, session: SessionDep
-) -> CheckoutResponse:
-    """A Stripe Checkout URL for the chosen tier + interval."""
-    url = await billing.create_checkout_session(session, account, data.tier, data.interval)
+async def checkout(account: CurrentUser, session: SessionDep) -> CheckoutResponse:
+    """A Stripe Checkout URL to start the metered subscription (one plan)."""
+    url = await billing.create_checkout_session(session, account)
     return CheckoutResponse(url=url)
 
 

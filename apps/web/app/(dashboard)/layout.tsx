@@ -10,6 +10,7 @@ import { FilterProvider } from "@/components/layout/filter-context";
 import { RangeProvider } from "@/components/layout/range-context";
 import { SiteProvider } from "@/components/layout/site-context";
 import { PageSkeleton } from "@/components/skeletons";
+import { PaywallGate } from "@/components/PaywallGate";
 import { UsageBanner } from "@/components/UsageBanner";
 import { useMe } from "@/hooks/useAuth";
 
@@ -49,6 +50,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <AppFooter />
             </div>
           </div>
+          <PaywallGate />
         </FilterProvider>
       </RangeProvider>
     </SiteProvider>
