@@ -21,6 +21,7 @@ from app.routers import (
     live,
     oauth,
     public,
+    searchconsole,
     sites,
     stats,
 )
@@ -61,6 +62,8 @@ def create_app() -> FastAPI:
     app.include_router(sites.router)
     # Authed, ownership-scoped historical reports (queries ClickHouse).
     app.include_router(stats.router)
+    # Authed Search Console connect/reports + public Google OAuth callback (F13).
+    app.include_router(searchconsole.router)
     # Public, token-scoped read-only shared dashboards (§8) — no auth, one site.
     app.include_router(public.router)
     # Billing: authed checkout/portal/usage under the locked CORS + a public,

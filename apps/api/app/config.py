@@ -123,6 +123,15 @@ class Settings(BaseSettings):
     # SSRF guard (a redirect to an internal address is the classic bypass).
     uptime_max_redirects: int = 3  # UPTIME_MAX_REDIRECTS
 
+    # --- Search Console (Phase 13) ----------------------------------------
+    # GSC connect reuses GOOGLE_CLIENT_ID/SECRET (the sign-in creds) with the
+    # webmasters.readonly scope + offline access. Each daily sync re-pulls the
+    # trailing N days per connected site (delete-reinsert per day) so late GSC
+    # revisions self-heal; GSC data also lags ~2–3 days, covered by this window.
+    gsc_sync_days: int = 30  # GSC_SYNC_DAYS
+    # Rows to request per (site, day) from the Search Analytics API (bounded).
+    gsc_row_limit: int = 5000  # GSC_ROW_LIMIT
+
 
 # Monthly pageview quota per plan tier. `free` is both the entry tier and the
 # lapsed-trial / canceled-subscription fallback (see billing.effective_plan).

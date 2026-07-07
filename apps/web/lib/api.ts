@@ -69,6 +69,35 @@ export type UptimeStatus = {
   incidents: UptimeIncident[];
 };
 
+// --- Search Console (Phase 13) ---------------------------------------------
+export type GscReport = "keywords" | "pages" | "opportunities";
+export type GscConnection = {
+  connected: boolean;
+  property_url: string | null; // the linked GSC siteUrl; never the refresh token
+  last_synced_at: string | null;
+};
+export type SearchRow = {
+  label: string; // query or page URL
+  clicks: number;
+  impressions: number;
+  ctr: number; // 0..1
+  position: number; // average rank (lower is better)
+};
+export type SearchReportData = { rows: SearchRow[] };
+export type GscAuthorize = { authorize_url: string };
+export type GscSync = { rows_written: number; last_synced_at: string | null };
+
+/** Build a `/searchconsole/{site_id}/{report}` path with the shared range params. */
+export function gscPath(
+  report: string,
+  siteId: string,
+  range: StatsRange,
+  extra: Record<string, string> = {},
+): string {
+  const q = new URLSearchParams({ from: range.from, to: range.to, ...extra });
+  return `/searchconsole/${encodeURIComponent(siteId)}/${report}?${q.toString()}`;
+}
+
 // --- Billing (Phase 7) -----------------------------------------------------
 export type BillingTier = "pro" | "business";
 export type BillingInterval = "monthly" | "annual";

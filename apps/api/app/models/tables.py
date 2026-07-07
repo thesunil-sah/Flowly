@@ -4,10 +4,10 @@ Ids are UUIDs generated app-side (non-enumerable, no DB extension needed).
 All timestamps are timezone-aware UTC (CLAUDE.md §4).
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -197,6 +197,52 @@ class UptimeIncident(Base):
     notified_up: Mapped[bool] = mapped_column(Boolean, default=False)
 
     site: Mapped["Site"] = relationship()
+
+
+class SearchConsoleConnection(Base):
+    """Links one Flowly site to a Google Search Console property (Phase 13).
+
+    Holds the OAuth **refresh token** granting read-only access to that property's
+    Search Analytics. The token is a live credential (§9): it is never logged and
+    never returned in an API response — only the sync worker reads it, to mint a
+    short-lived access token. (Encryption-at-rest is a recommended hardening; the
+    column stores it plaintext today, guarded by never-log/never-return.)
+    """
+
+    __tablename__ = "search_console_connections"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    # 1:1 with a site; FK to the internal pk so a deleted site takes it along.
+    site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id"), unique=True, index=True)
+    # The GSC siteUrl, e.g. "sc-domain:example.com" or "https://example.com/".
+    property_url: Mapped[str] = mapped_column(String(255))
+    # Google OAuth refresh token — NEVER logged or returned (§9).
+    refresh_token: Mapped[str] = mapped_column(String(512))
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    site: Mapped["Site"] = relationship()
+
+
+class SearchMetric(Base):
+    """One day's Search Analytics row for a (query, page) on a site (Phase 13).
+
+    Synced from GSC by `workers/searchconsole.py`, idempotent per (site, date):
+    the sync deletes a day's rows then re-inserts, so a re-run replaces cleanly.
+    CTR is derived (clicks/impressions) at read time — not stored.
+    """
+
+    __tablename__ = "search_metrics"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id"), index=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    query: Mapped[str] = mapped_column(String(512))
+    page: Mapped[str] = mapped_column(String(2048))
+    clicks: Mapped[int] = mapped_column(Integer, default=0)
+    impressions: Mapped[int] = mapped_column(Integer, default=0)
+    # GSC's average result position for this row (1.0 = top). Lower is better.
+    position: Mapped[float] = mapped_column(Float, default=0.0)
 
 
 class ProcessedStripeEvent(Base):

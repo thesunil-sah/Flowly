@@ -429,3 +429,31 @@ class UptimeStatusOut(BaseModel):
     last_checked_at: datetime | None
     last_status_code: int | None
     incidents: list[UptimeIncidentOut]  # most recent first
+
+
+# --- Search Console (Phase 13) ---------------------------------------------
+class GscAuthorizeOut(BaseModel):
+    authorize_url: str  # Google consent URL; the browser navigates here
+
+
+class GscConnectionOut(BaseModel):
+    connected: bool
+    property_url: str | None  # the linked GSC siteUrl; never the refresh token
+    last_synced_at: datetime | None
+
+
+class SearchRow(BaseModel):
+    label: str  # the query (keyword/opportunity reports) or page URL
+    clicks: int
+    impressions: int
+    ctr: float  # clicks / impressions (0..1)
+    position: float  # impression-weighted average rank (lower = better)
+
+
+class SearchReportOut(BaseModel):
+    rows: list[SearchRow]
+
+
+class GscSyncOut(BaseModel):
+    rows_written: int
+    last_synced_at: datetime | None
