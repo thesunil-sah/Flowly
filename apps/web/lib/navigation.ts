@@ -20,6 +20,7 @@ import {
   Share2,
   Smartphone,
   Sparkles,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -60,6 +61,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Social", href: "/acquisitions/social", icon: Share2, ready: true },
       { title: "AI platforms", href: "/acquisitions/ai", icon: Sparkles, ready: true },
       { title: "Campaigns", href: "/acquisitions/campaigns", icon: Megaphone, ready: true },
+    ],
+  },
+  {
+    title: "Search Console",
+    items: [
+      { title: "Keywords", href: "/search-console/keywords", icon: Search, ready: true },
+      { title: "Search pages", href: "/search-console/pages", icon: FileText, ready: true },
+      { title: "Opportunities", href: "/search-console/opportunities", icon: TrendingUp, ready: true },
     ],
   },
   {
