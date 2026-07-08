@@ -118,9 +118,7 @@ async def sync(site: OwnedSite, session: SessionDep) -> GscSyncOut:
     conn = await searchconsole.get_connection(session, site)
     if conn is None:
         raise ValidationError("Connect Search Console first.")
-    written = await searchconsole.sync_site(
-        session, conn, days=searchconsole.MANUAL_SYNC_DAYS
-    )
+    written = await searchconsole.sync_site(session, conn, days=searchconsole.MANUAL_SYNC_DAYS)
     return GscSyncOut(rows_written=written, last_synced_at=conn.last_synced_at)
 
 

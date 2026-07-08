@@ -172,9 +172,14 @@ subscriptions   id, account_id (FK), stripe_customer_id, stripe_subscription_id,
 
 **ClickHouse (analytics — append-only, queried by `site_id`):**
 ```
-events          site_id, ts (UTC), path, referrer, source, utm_source, utm_medium,
-                utm_campaign, country, region, device, browser, os, visitor_hash, screen_w
+events          site_id, ts (UTC), event_type ("pageview"|"custom"), name, path,
+                referrer, source, utm_source, utm_medium, utm_campaign, country,
+                region, city, device, browser, os, language, visitor_hash, screen_w
 ```
+`event_type`/`name` (Phase 15 — first premium feature) tag a custom event from
+`flowly('event', name)`; custom events are stored but never metered/live (§1),
+and their reports are paid-only (free → 402). Conversion goals live in a Postgres
+`goals` table (id, site_id FK, name, kind, target, unique(site_id, kind, target)).
 
 **Redis (live + metering — ephemeral):**
 ```
@@ -588,7 +593,7 @@ Pricing schedule (per account, per month, **all sites' views counted together** 
 
 ### Phase 15 — Premium (DEFER until users ask)
 **Goal:** upsell features — build only when paying users request them.
-- [ ] Custom events + conversion goals
+- [x] **Custom events + conversion goals** (built) — tracker `flowly('event', name)` + `event_type`/`name` on `/collect`+ClickHouse; stored-only (never metered/live, §1); paid-gated reports (`billing.require_premium` → 402): `GET /events` + goals CRUD/conversions (`routers/goals.py`, `services/goals.py`, Postgres `goals` table); web `/goals` page (`components/goals/goals-report.tsx`, `hooks/useGoals.ts`, nav under Behavior)
 - [ ] Custom dashboards
 - [ ] Custom segments / cohorts
 - [ ] Funnels + user-flow / path analysis

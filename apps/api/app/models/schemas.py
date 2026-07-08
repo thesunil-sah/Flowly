@@ -360,6 +360,48 @@ class BreakdownOut(BaseModel):
     rows: list[BreakdownRow]
 
 
+# --- Custom events + conversion goals (Phase 15) --------------------------
+class EventRow(BaseModel):
+    """One custom-event name with its volume over the range."""
+
+    name: str
+    count: int
+    visitors: int
+
+
+class EventsOut(BaseModel):
+    rows: list[EventRow]
+
+
+class GoalIn(BaseModel):
+    """Create a conversion goal: a pageview path or a named custom event."""
+
+    name: str = Field(min_length=1, max_length=64)
+    kind: Literal["pageview", "custom"]
+    # For kind="pageview" this is the target path (e.g. "/thank-you"); for
+    # kind="custom" it's the event name (e.g. "signup").
+    target: str = Field(min_length=1, max_length=2048)
+
+
+class GoalOut(BaseModel):
+    id: UUID
+    name: str
+    kind: str
+    target: str
+
+
+class GoalConversionOut(BaseModel):
+    """A goal's conversion performance over a date range."""
+
+    goal: GoalOut
+    # Unique visitors who triggered the goal at least once.
+    conversions: int
+    # Unique visitors in the same window (the conversion denominator).
+    visitors: int
+    # conversions / visitors, 0..1 (0 when there were no visitors).
+    conversion_rate: float
+
+
 class UtmRow(BaseModel):
     utm_source: str
     utm_medium: str

@@ -1,0 +1,271 @@
+# Flowly — Render Blueprint (Infrastructure as Code).
+#
+# Deploy: push this repo to GitHub, then in Render → "New +" → "Blueprint" and
+# point it at the repo. Render provisions everything below. Fill every `sync:
+# false` var (secrets) in the dashboard, and see DEPLOY.md for the ClickHouse
+# Cloud + Stripe + Google setup that lives outside this file.
+#
+# What this declares:
+#   • flowly-api            web service   (FastAPI, Docker)     — serves /collect, dashboard API, /script.js
+#   • flowly-web            web service   (Next.js, Docker)
+#   • flowly-batch-writer   worker        (drains Redis → ClickHouse; MUST always run)
+#   • 6 cron jobs           usage/onboarding/digest/retention/uptime/searchconsole
+#   • flowly-postgres       managed Postgres
+#   • flowly-redis          managed Key Value (Redis-compatible)
+# ClickHouse is NOT hosted here — use ClickHouse Cloud and set CLICKHOUSE_* (DEPLOY.md).
+#
+# The API's preDeployCommand runs DB migrations (Postgres + ClickHouse) on every
+# deploy, so schema changes ship automatically.
+
+databases:
+  - name: flowly-postgres
+    databaseName: flowly
+    user: flowly
+    plan: basic-256mb # bump as data grows
+
+services:
+  # --- Redis (Key Value) --------------------------------------------------
+  - type: keyvalue
+    name: flowly-redis
+    plan: starter
+    ipAllowList: [] # internal-only (reachable by the other Render services)
+    maxmemoryPolicy: noeviction # ingest stream + usage counters must not be evicted
+
+  # --- Shared config (secrets + cross-service values) ---------------------
+  # generateValue mints ONE value shared by every service that includes this
+  # group — critical for JWT_SECRET / VISITOR_SALT_SECRET (must be identical
+  # everywhere). `sync: false` = fill it in the dashboard (never committed).
+  # (Referenced by api + all workers/crons via `fromGroup`.)
+
+  # --- API (FastAPI) ------------------------------------------------------
+  - type: web
+    name: flowly-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    # Ship schema changes on every deploy (venv is on PATH; CWD is the app dir).
+    preDeployCommand: "alembic upgrade head && python -m app.db.clickhouse --migrate"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+  # --- Web (Next.js) ------------------------------------------------------
+  # NEXT_PUBLIC_* are inlined at BUILD time; Render passes these as Docker build
+  # args. Point NEXT_PUBLIC_API_URL at the API's public URL.
+  - type: web
+    name: flowly-web
+    runtime: docker
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_DEMO_SHARE_TOKEN
+        sync: false
+
+  # --- Batch writer (always-on worker) ------------------------------------
+  # Without this, buffered events never reach ClickHouse. Not a cron — long-lived.
+  - type: worker
+    name: flowly-batch-writer
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: starter
+    dockerCommand: "python -m app.workers.batch_writer"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+  # --- Cron workers (run-once each fire) ----------------------------------
+  - type: cron
+    name: flowly-usage-report
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    schedule: "0 * * * *" # hourly — push metered usage to Stripe
+    dockerCommand: "python -m app.workers.usage_report"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+  - type: cron
+    name: flowly-onboarding
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    schedule: "15 * * * *" # hourly (offset) — onboarding email sequence
+    dockerCommand: "python -m app.workers.onboarding"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+  - type: cron
+    name: flowly-digest
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    schedule: "0 8 * * 1" # Monday 08:00 UTC — weekly email digest
+    dockerCommand: "python -m app.workers.digest"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+  - type: cron
+    name: flowly-retention
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    schedule: "30 3 * * *" # daily 03:30 UTC — per-plan retention deletion
+    dockerCommand: "python -m app.workers.retention"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+  - type: cron
+    name: flowly-searchconsole
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    schedule: "0 4 * * *" # daily 04:00 UTC — Search Console sync
+    dockerCommand: "python -m app.workers.searchconsole"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+  - type: cron
+    name: flowly-uptime
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    schedule: "*/5 * * * *" # every 5 min — uptime pinger (no-op until UPTIME_ENABLED=true)
+    dockerCommand: "python -m app.workers.uptime"
+    envVars:
+      - fromGroup: flowly-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: flowly-redis
+          property: connectionString
+
+# --- Shared env group -----------------------------------------------------
+envVarGroups:
+  - name: flowly-shared
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      # Auth + ingestion secrets — generated once, shared by every service.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: VISITOR_SALT_SECRET
+        generateValue: true
+      # Public URLs (set after the api/web services get their onrender.com URLs,
+      # or your custom domains). API_BASE_URL feeds OAuth/GSC redirect URIs;
+      # WEB_BASE_URL is the CORS + WebSocket origin allowlist.
+      - key: API_BASE_URL
+        sync: false
+      - key: WEB_BASE_URL
+        sync: false
+      # Where the tracking snippet loads script.js from (the API serves it).
+      - key: TRACKER_SCRIPT_URL
+        sync: false
+      # ClickHouse Cloud (external) — TLS on 8443.
+      - key: CLICKHOUSE_HOST
+        sync: false
+      - key: CLICKHOUSE_USER
+        sync: false
+      - key: CLICKHOUSE_PASSWORD
+        sync: false
+      - key: CLICKHOUSE_DB
+        value: default
+      - key: CLICKHOUSE_SECURE
+        value: "true"
+      # Stripe (metered billing) — create the Price + Meter first (DEPLOY.md).
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_METERED
+        sync: false
+      - key: STRIPE_METER_EVENT
+        value: pageviews
+      # Email (Resend) — blank leaves mail in dev-stub log mode.
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: CONTACT_EMAIL
+        sync: false
+      # Google OAuth + Search Console (shared creds).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Support-chatbot AI fallback (blank → FAQ-only, no API call).
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Uptime: off until an operator flips it on.
+      - key: UPTIME_ENABLED
+        value: "false"

@@ -35,6 +35,8 @@ from app.models.schemas import (
     BreakdownRow,
     ChannelRow,
     ChannelsOut,
+    EventRow,
+    EventsOut,
     HeatmapCell,
     HeatmapOut,
     MetricDelta,
@@ -277,6 +279,65 @@ def build_utm(
         "ORDER BY visitors DESC, pageviews DESC LIMIT {limit:UInt32}"
     )
     params = _range_params(site_id, from_, to) | fparams | {"limit": _clamp_limit(limit)}
+    return sql, params
+
+
+def build_events(
+    site_id: str,
+    from_: datetime,
+    to: datetime,
+    limit: int,
+    filters: dict[str, str] | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Top custom-event names by volume (Phase 15). Pageviews are excluded — this
+    is the custom-event report. `name != ''` drops any nameless row defensively."""
+    fsql, fparams = _filter_clause(filters)
+    sql = (
+        "SELECT name AS name, "
+        "toInt64(count()) AS count, "
+        "toInt64(uniqExact(visitor_hash)) AS visitors "
+        "FROM events WHERE " + _BASE_WHERE + fsql + " AND event_type = 'custom' AND name != '' "
+        "GROUP BY name ORDER BY count DESC, visitors DESC, name ASC LIMIT {limit:UInt32}"
+    )
+    params = _range_params(site_id, from_, to) | fparams | {"limit": _clamp_limit(limit)}
+    return sql, params
+
+
+# Goal kind -> the match predicate. The dict IS the allowlist (same idiom as
+# `_AUDIENCE_COLUMNS`): `kind` is validated against it, so the only text
+# interpolated into SQL is one of these fixed internal fragments. The `target`
+# value is ALWAYS bound as the server-side param `{goal_target:String}` — never
+# string-formatted (§9).
+_GOAL_MATCH: dict[str, str] = {
+    "pageview": "event_type = 'pageview' AND path = {goal_target:String}",
+    "custom": "event_type = 'custom' AND name = {goal_target:String}",
+}
+
+
+def build_goal_conversions(
+    site_id: str,
+    from_: datetime,
+    to: datetime,
+    kind: str,
+    target: str,
+    filters: dict[str, str] | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Unique converting visitors + total unique visitors for one goal (Phase 15).
+
+    Conversions = distinct visitors who matched the goal at least once;
+    denominator = all distinct visitors in the window, so a rate can never
+    exceed 1. One scan, both figures via conditional aggregates.
+    """
+    match = _GOAL_MATCH.get(kind)
+    if match is None:
+        raise ValidationError(f"Unknown goal kind: {kind}")
+    fsql, fparams = _filter_clause(filters)
+    sql = (
+        f"SELECT toInt64(uniqExactIf(visitor_hash, {match})) AS conversions, "
+        "toInt64(uniqExact(visitor_hash)) AS visitors "
+        "FROM events WHERE " + _BASE_WHERE + fsql
+    )
+    params = _range_params(site_id, from_, to) | fparams | {"goal_target": target}
     return sql, params
 
 
@@ -603,6 +664,42 @@ async def sources(
         for r in await query_rows(client, usql, uparams)
     ]
     return SourcesOut(sources=source_rows, utm=utm_rows)
+
+
+async def events(
+    client: AsyncClient,
+    site_id: str,
+    from_: datetime,
+    to: datetime,
+    limit: int,
+    filters: dict[str, str] | None = None,
+) -> EventsOut:
+    """Top custom events by volume over the range (Phase 15)."""
+    sql, params = build_events(site_id, from_, to, limit, filters)
+    rows = [
+        EventRow(name=str(r["name"]), count=int(r["count"]), visitors=int(r["visitors"]))
+        for r in await query_rows(client, sql, params)
+    ]
+    return EventsOut(rows=rows)
+
+
+async def goal_conversions(
+    client: AsyncClient,
+    site_id: str,
+    from_: datetime,
+    to: datetime,
+    kind: str,
+    target: str,
+    filters: dict[str, str] | None = None,
+) -> tuple[int, int, float]:
+    """`(conversions, visitors, rate)` for one goal (Phase 15). The goals layer
+    composes the response so this stays decoupled from the goal schema."""
+    sql, params = build_goal_conversions(site_id, from_, to, kind, target, filters)
+    rows = await query_rows(client, sql, params)
+    conversions = int(rows[0]["conversions"]) if rows else 0
+    visitors = int(rows[0]["visitors"]) if rows else 0
+    rate = conversions / visitors if visitors else 0.0
+    return conversions, visitors, rate
 
 
 async def channels(

@@ -50,11 +50,34 @@ class Settings(BaseSettings):
     # --- Postgres ---------------------------------------------------------
     database_url: str = "postgresql+asyncpg://user:pass@localhost:5432/flowly"  # DATABASE_URL
 
+    @field_validator("database_url")
+    @classmethod
+    def _async_pg_driver(cls, value: str) -> str:
+        """Upgrade a bare Postgres DSN to the asyncpg driver SQLAlchemy needs.
+
+        Managed Postgres (Render/Railway/Heroku) hands out a *sync* DSN —
+        `postgres://…` or `postgresql://…` — so its connection string can be
+        pasted (or wired via `fromDatabase`) straight into `DATABASE_URL`. The
+        async engine (`create_async_engine`) requires the `+asyncpg` driver, so
+        rewrite the scheme in place. A DSN that already names a driver
+        (`postgresql+asyncpg://`, `sqlite+aiosqlite://` in tests) is left alone.
+        """
+        for prefix in ("postgresql://", "postgres://"):
+            if value.startswith(prefix):
+                return "postgresql+asyncpg://" + value[len(prefix) :]
+        return value
+
     # --- ClickHouse (connectivity only in Phase 1) ------------------------
     clickhouse_host: str = "localhost"  # CLICKHOUSE_HOST
     clickhouse_user: str = "default"  # CLICKHOUSE_USER
     clickhouse_password: str = ""  # CLICKHOUSE_PASSWORD
     clickhouse_db: str = "flowly"  # CLICKHOUSE_DB
+    # Port + TLS for the HTTP interface. Blank port -> clickhouse-connect's
+    # default (8123 plain / 8443 secure). A managed ClickHouse (ClickHouse Cloud)
+    # requires TLS on 8443 — set CLICKHOUSE_SECURE=true (port then defaults to
+    # 8443). Left off for a plain local/self-hosted instance.
+    clickhouse_port: int | None = None  # CLICKHOUSE_PORT
+    clickhouse_secure: bool = False  # CLICKHOUSE_SECURE
 
     # --- Redis ------------------------------------------------------------
     redis_url: str = "redis://localhost:6379/0"  # REDIS_URL

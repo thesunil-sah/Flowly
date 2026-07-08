@@ -24,6 +24,8 @@ EVENT_COLUMNS: tuple[str, ...] = (
     "event_id",
     "site_id",
     "ts",
+    "event_type",
+    "name",
     "path",
     "referrer",
     "source",
@@ -51,6 +53,8 @@ CREATE TABLE IF NOT EXISTS events (
     event_id      UUID,
     site_id       String,
     ts            DateTime64(3, 'UTC') DEFAULT now64(3),
+    event_type    LowCardinality(String) DEFAULT 'pageview',
+    name          String,
     path          String,
     referrer      String,
     source        LowCardinality(String),
@@ -82,6 +86,10 @@ async def get_clickhouse() -> AsyncClient:
             username=settings.clickhouse_user,
             password=settings.clickhouse_password,
             database=settings.clickhouse_db,
+            # secure=True + no explicit port lets clickhouse-connect default to
+            # 8443 (ClickHouse Cloud's TLS HTTPS port); a set port overrides it.
+            secure=settings.clickhouse_secure,
+            **({"port": settings.clickhouse_port} if settings.clickhouse_port else {}),
         )
     return _client
 

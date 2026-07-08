@@ -87,6 +87,32 @@ class Site(Base):
     __table_args__ = (UniqueConstraint("account_id", "domain", name="uq_site_account_domain"),)
 
 
+class Goal(Base):
+    """A conversion goal for one site (Phase 15 — first premium feature).
+
+    A goal is a target the owner wants visitors to reach: a pageview at a path
+    (`kind="pageview"`, `target="/thank-you"`) or a named custom event
+    (`kind="custom"`, `target="signup"`). The conversion rate is computed at read
+    time from ClickHouse — nothing is precomputed or stored here but the
+    definition. FK to the internal site pk so a deleted site drops its goals.
+    """
+
+    __tablename__ = "goals"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id"), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(16))  # "pageview" | "custom"
+    target: Mapped[str] = mapped_column(String(2048))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    site: Mapped["Site"] = relationship()
+
+    # The same (kind, target) on a site is one goal — a duplicate is a no-op the
+    # service surfaces as a clean 409, not a second row.
+    __table_args__ = (UniqueConstraint("site_id", "kind", "target", name="uq_goal_site_target"),)
+
+
 class ShareToken(Base):
     """A public, read-only share link for one site's dashboard (Phase 8).
 

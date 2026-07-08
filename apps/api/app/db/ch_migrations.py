@@ -20,7 +20,9 @@ from clickhouse_connect.driver import AsyncClient
 
 # (name, sql) in apply order. `name` is for logging only — ordering is by list
 # position. Phase 11 adds city (paid audience report) + language (from the
-# tracker's navigator.language).
+# tracker's navigator.language). Phase 15 adds event_type + name for custom
+# events / conversion goals (a pageview is `event_type='pageview'`, so existing
+# rows read correctly against the DEFAULT).
 CH_MIGRATIONS: tuple[tuple[str, str], ...] = (
     (
         "0001_add_city",
@@ -29,6 +31,15 @@ CH_MIGRATIONS: tuple[tuple[str, str], ...] = (
     (
         "0002_add_language",
         "ALTER TABLE events ADD COLUMN IF NOT EXISTS language LowCardinality(String)",
+    ),
+    (
+        "0003_add_event_type",
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS "
+        "event_type LowCardinality(String) DEFAULT 'pageview'",
+    ),
+    (
+        "0004_add_event_name",
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS name String",
     ),
 )
 

@@ -20,6 +20,7 @@ import {
   Share2,
   Smartphone,
   Sparkles,
+  Target,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Pages", href: "/behavior/pages", icon: FileText, ready: true },
       { title: "Entry pages", href: "/behavior/entry", icon: ArrowDownRight, ready: true },
       { title: "Exit pages", href: "/behavior/exit", icon: ArrowUpRight, ready: true },
+      // Premium (Phase 15): custom events + conversion goals.
+      { title: "Goals & events", href: "/goals", icon: Target, ready: true },
     ],
   },
   {

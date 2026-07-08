@@ -179,6 +179,19 @@ export type Channels = { channels: ChannelRow[] };
 export type HeatmapCell = { dow: number; hour: number; pageviews: number; visitors: number };
 export type Heatmap = { timezone: string; cells: HeatmapCell[] };
 
+// --- Custom events + conversion goals (Phase 15, premium) ----------------
+export type EventRow = { name: string; count: number; visitors: number };
+export type EventsData = { rows: EventRow[] };
+export type GoalKind = "pageview" | "custom";
+export type Goal = { id: string; name: string; kind: GoalKind; target: string };
+export type GoalInput = { name: string; kind: GoalKind; target: string };
+export type GoalConversion = {
+  goal: Goal;
+  conversions: number;
+  visitors: number;
+  conversion_rate: number;
+};
+
 /**
  * Active dashboard filters (Phase 10) — exact-match slices on allowlisted
  * columns (country/device/browser/os/source/path). Threaded verbatim into every

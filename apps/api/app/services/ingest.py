@@ -55,10 +55,15 @@ def build_stream_row(event: CollectEvent, ip: str, ua: str, origin: str | None) 
     """
     country, region, city = geo.lookup(ip)
     device, browser, os_name = useragent.parse(ua)
+    # A custom event needs a name; without one it degrades to a plain pageview so
+    # a malformed `flowly('event')` call never creates a nameless custom row.
+    is_custom = event.event_type == "custom" and bool(event.name)
     return {
         "event_id": str(uuid4()),
         "site_id": event.site_id,
         "ts": datetime.now(UTC).isoformat(),
+        "event_type": "custom" if is_custom else "pageview",
+        "name": event.name if is_custom else "",
         "path": event.path,
         "referrer": event.referrer or "",
         "source": derive_source(event.utm_source, event.referrer, origin),
@@ -104,6 +109,14 @@ async def ingest_event(
         maxlen=settings.stream_maxlen,
         approximate=True,
     )
+
+    # Custom events (Phase 15) are stored-only: they are NOT pageviews, so they
+    # must never touch the live pageview feed (Phase 4) or the usage counter that
+    # bills by pageview (Phase 7/14, §1). They still went through bot-filter +
+    # rate-limit + hashing above and are durably buffered — only the fan-out and
+    # metering below are pageview-specific.
+    if row["event_type"] != "pageview":
+        return row["event_id"]
 
     # Real-time fan-out (Phase 4). Best-effort: the event is already durably
     # buffered above, so a live-path hiccup must never fail or slow /collect

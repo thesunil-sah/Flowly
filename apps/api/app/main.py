@@ -17,6 +17,7 @@ from app.routers import (
     collect,
     contact,
     email,
+    goals,
     health,
     live,
     oauth,
@@ -62,6 +63,8 @@ def create_app() -> FastAPI:
     app.include_router(sites.router)
     # Authed, ownership-scoped historical reports (queries ClickHouse).
     app.include_router(stats.router)
+    # Premium (Phase 15): custom-event reports + conversion goals — paid-gated.
+    app.include_router(goals.router)
     # Authed Search Console connect/reports + public Google OAuth callback (F13).
     app.include_router(searchconsole.router)
     # Public, token-scoped read-only shared dashboards (§8) — no auth, one site.

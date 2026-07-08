@@ -69,7 +69,5 @@ def downgrade() -> None:
     op.drop_index("ix_search_metrics_date", table_name="search_metrics")
     op.drop_index("ix_search_metrics_site_id", table_name="search_metrics")
     op.drop_table("search_metrics")
-    op.drop_index(
-        "ix_search_console_connections_site_id", table_name="search_console_connections"
-    )
+    op.drop_index("ix_search_console_connections_site_id", table_name="search_console_connections")
     op.drop_table("search_console_connections")

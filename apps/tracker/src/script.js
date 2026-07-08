@@ -78,6 +78,40 @@
       }
     }
 
+    // Public API: flowly('event', name) fires a custom event (Phase 15). Named
+    // events are stored server-side; pageviews are still automatic. Never throws.
+    function flowly(cmd, name) {
+      try {
+        if (cmd === "event" && name) {
+          send(
+            JSON.stringify({
+              site_id: siteId,
+              event_type: "custom",
+              name: String(name),
+              path: location.pathname,
+              referrer: document.referrer,
+              screen_w: screen.width,
+              language: navigator.language,
+            }),
+          );
+        }
+      } catch (_) {
+        /* fail silently */
+      }
+    }
+
+    // Expose it, draining any calls queued before this script loaded (the
+    // install-snippet stub pushes args onto window.flowly.q).
+    var prev = window.flowly;
+    window.flowly = flowly;
+    try {
+      if (prev && prev.q) {
+        for (var i = 0; i < prev.q.length; i++) flowly.apply(null, prev.q[i]);
+      }
+    } catch (_) {
+      /* fail silently */
+    }
+
     // SPA support: fire on client-side navigations. Wrap the history methods so a
     // host-page error can never surface through our patch.
     function patch(name) {

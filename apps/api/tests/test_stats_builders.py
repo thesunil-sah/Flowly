@@ -118,6 +118,39 @@ def test_screen_bucket_boundaries() -> None:
     assert "'Desktop'" in expr
 
 
+# --- custom events + goals (Phase 15) ------------------------------------
+def test_events_builder_scopes_to_custom_and_clamps_limit() -> None:
+    sql, params = stats.build_events("s", FROM, TO, 999)
+    assert "event_type = 'custom'" in sql
+    assert "name != ''" in sql
+    assert params["limit"] == stats.MAX_LIMIT  # 999 clamped down
+
+
+def test_goal_conversion_target_is_bound_never_interpolated() -> None:
+    # §9: the goal target is a server-side param, never string-formatted in.
+    sql, params = stats.build_goal_conversions("s", FROM, TO, "custom", "sign'up; DROP")
+    assert "{goal_target:String}" in sql
+    assert params["goal_target"] == "sign'up; DROP"
+    assert "DROP" not in sql
+    # Conversions vs total visitors, both distinct-visitor counts.
+    assert "uniqExactIf(visitor_hash" in sql
+    assert "uniqExact(visitor_hash)" in sql
+
+
+def test_goal_conversion_pageview_matches_path() -> None:
+    sql, _ = stats.build_goal_conversions("s", FROM, TO, "pageview", "/thanks")
+    assert "event_type = 'pageview' AND path = {goal_target:String}" in sql
+
+
+def test_goal_conversion_unknown_kind_rejected() -> None:
+    import pytest
+
+    from app.core.exceptions import ValidationError
+
+    with pytest.raises(ValidationError):
+        stats.build_goal_conversions("s", FROM, TO, "evil", "x")
+
+
 def test_channels_multiif_orders_ai_before_search() -> None:
     sql, _ = stats.build_channels("s", FROM, TO)
     assert "'direct'" in sql and "'referral'" in sql

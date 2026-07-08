@@ -1,0 +1,16 @@
+# Build context is the repo root, so ignore paths relative to it.
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/node_modules
+apps/tracker/dist
+apps/web
+.git
+.github
+*.md
+!apps/api/README.md
+.env
+.env.*
+!.env.example

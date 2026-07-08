@@ -158,3 +158,45 @@ async def test_ingest_missing_language_is_empty(redis) -> None:
     assert eid is not None
     _id, fields = (await redis.xrange(STREAM))[0]
     assert fields["language"] == ""
+
+
+# --- custom events (Phase 15) --------------------------------------------
+async def test_custom_event_is_buffered_with_type_and_name(redis) -> None:
+    eid = await ingest.ingest_event(
+        _event(event_type="custom", name="signup"), "9.9.9.9", UA, None, redis
+    )
+    assert eid is not None
+    _id, fields = (await redis.xrange(STREAM))[0]
+    assert fields["event_type"] == "custom"
+    assert fields["name"] == "signup"
+
+
+async def test_custom_event_without_name_degrades_to_pageview(redis) -> None:
+    # A nameless flowly('event') call must never create a nameless custom row.
+    await ingest.ingest_event(_event(event_type="custom"), "9.9.9.9", UA, None, redis)
+    _id, fields = (await redis.xrange(STREAM))[0]
+    assert fields["event_type"] == "pageview"
+    assert fields["name"] == ""
+
+
+async def test_custom_event_does_not_meter(redis) -> None:
+    # Billing is by pageview (§1) — a custom event must NOT touch the usage counter.
+    from datetime import UTC, datetime
+    from uuid import UUID
+
+    from app.services import billing
+
+    acc_id = UUID(int=15)
+    await billing.cache_site_account(redis, "demo", acc_id)
+    await ingest.ingest_event(
+        _event(event_type="custom", name="signup"), "9.9.9.9", UA, None, redis
+    )
+    assert await billing.get_usage(redis, acc_id, datetime.now(UTC)) == 0
+
+
+async def test_custom_event_not_in_live_set(redis) -> None:
+    # Stored-only: a custom event must not touch the live pageview presence set.
+    await ingest.ingest_event(
+        _event(event_type="custom", name="signup"), "203.0.113.5", UA, None, redis
+    )
+    assert await redis.zcard("active:demo") == 0

@@ -54,6 +54,10 @@ def _coerce_row(fields: dict[str, str]) -> dict[str, Any]:
         "event_id": UUID(fields["event_id"]),
         "site_id": fields.get("site_id", ""),
         "ts": datetime.fromisoformat(fields["ts"]),
+        # Default keeps pre-Phase-15 stream entries (no event_type field) coercing
+        # as pageviews.
+        "event_type": fields.get("event_type") or "pageview",
+        "name": fields.get("name", ""),
         "path": fields.get("path", ""),
         "referrer": fields.get("referrer", ""),
         "source": fields.get("source", ""),
