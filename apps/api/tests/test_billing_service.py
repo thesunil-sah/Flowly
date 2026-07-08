@@ -331,6 +331,34 @@ async def test_subscription_updated_grants_metered_entitlement(
         assert sub.stripe_subscription_id == "sub_1"
 
 
+async def test_webhook_object_as_stripeobject_flips_entitlement(
+    session_factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: a REAL webhook's data.object is a Stripe ``StripeObject``.
+
+    ``construct_event()`` yields ``StripeObject``, which is NOT a dict subclass and
+    has no ``.get()`` — the earlier ``obj.get(...)`` 500'd every real webhook (so a
+    paid subscription never landed) while these dict-based tests stayed green. Feed
+    the handler a real (recursively-converted) StripeObject to pin the fix.
+    """
+    from stripe import StripeObject
+
+    monkeypatch.setattr(settings, "stripe_price_metered", "price_metered")
+    acc_id = await _seed_account(session_factory, plan="free", status="free")
+    plain = _sub_event("customer.subscription.created", acc_id)
+    obj = StripeObject.construct_from(plain["data"]["object"], "sk_test")
+    assert not isinstance(obj, dict)  # the trap: no dict-style .get() on this
+    event = {"type": plain["type"], "data": {"object": obj}}
+    async with session_factory() as s:
+        await billing.apply_subscription_event(s, event)
+        await s.commit()
+    async with session_factory() as s:
+        acc = await s.get(Account, acc_id)
+        sub = await billing._subscription_for_account(s, acc_id)
+        assert acc.plan == "metered" and acc.status == "active"
+        assert sub.stripe_customer_id == "cus_1" and sub.stripe_subscription_id == "sub_1"
+
+
 async def test_trialing_webhook_stamps_trial_ends_at(
     session_factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
 ) -> None:

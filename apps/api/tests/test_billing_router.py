@@ -109,9 +109,13 @@ async def test_checkout_no_trial_for_account_that_already_trialed(
 
 
 async def test_checkout_402_when_billing_not_configured(
-    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+    client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # No STRIPE_PRICE_METERED set (default "") → billing inert → 402, not a 500.
+    # No STRIPE_PRICE_METERED set → billing inert → 402, not a 500. Pinned
+    # explicitly so the test holds whether or not the env configures a real price.
+    monkeypatch.setattr(billing.settings, "stripe_price_metered", "")
     owner = await _owner(session_factory, plan="free", status="free")
     resp = await client.post("/billing/checkout", headers=_auth(owner))
     assert resp.status_code == 402

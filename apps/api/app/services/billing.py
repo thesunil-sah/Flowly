@@ -158,6 +158,17 @@ def require_dimension_access(account: Account, dimension: str, now: datetime) ->
         raise UpgradeRequiredError()
 
 
+def require_premium(account: Account, now: datetime) -> None:
+    """Raise `UpgradeRequiredError` if the account is on the free plan (Phase 15).
+
+    Gates the premium feature surface (custom-event reports + conversion goals):
+    ingestion still stores custom events for everyone (§9 — never gate /collect),
+    but only a paying (metered) account can *read* them. Enforced server-side on
+    every goals/events route so the gate isn't UI-only (§9)."""
+    if effective_plan(account, now) == FREE_PLAN:
+        raise UpgradeRequiredError()
+
+
 def is_locked(account: Account, used: int, now: datetime) -> bool:
     """True when a FREE account has passed the free monthly-view limit (Phase 14).
 
@@ -400,6 +411,18 @@ async def _subscription_for_account(session: AsyncSession, account_id: UUID) -> 
     return await session.scalar(select(Subscription).where(Subscription.account_id == account_id))
 
 
+def _field(obj: Any, key: str, default: Any = None) -> Any:
+    """Read a key from a Stripe event object OR a plain dict.
+
+    Stripe's ``StripeObject`` (what ``construct_event`` yields on a REAL webhook)
+    is not a dict subclass and has no ``.get()`` — calling ``obj.get(...)`` raises
+    ``AttributeError`` and 500s the webhook (so a real subscription never lands).
+    It does support ``in`` and ``[]``, which also work on the plain dicts the
+    tests pass, so this one accessor bridges both without special-casing.
+    """
+    return obj[key] if key in obj else default
+
+
 async def _account_from_event_object(session: AsyncSession, obj: Any) -> Account | None:
     """Resolve the owning Account from a Stripe object.
 
@@ -407,8 +430,8 @@ async def _account_from_event_object(session: AsyncSession, obj: Any) -> Account
     independent); fall back to a lookup by `stripe_customer_id` (e.g. invoices,
     which carry no metadata).
     """
-    metadata = obj.get("metadata") or {}
-    account_id = metadata.get("account_id")
+    metadata = _field(obj, "metadata") or {}
+    account_id = _field(metadata, "account_id")
     if account_id:
         # Metadata is attacker-influenceable in theory; a malformed id must not
         # 500 the webhook (Stripe would then retry it forever). Treat an
@@ -417,7 +440,7 @@ async def _account_from_event_object(session: AsyncSession, obj: Any) -> Account
             return await session.get(Account, UUID(account_id))
         except ValueError:
             logger.warning("webhook carried a malformed account_id metadata value")
-    customer = obj.get("customer")
+    customer = _field(obj, "customer")
     if customer:
         sub = await session.scalar(
             select(Subscription).where(Subscription.stripe_customer_id == customer)
@@ -444,7 +467,7 @@ async def _upsert_subscription(session: AsyncSession, account: Account, obj: Any
     # Stamp when a trial ends so the account can't get a second one (one trial
     # per account, Phase 14). `trial_end` is only present while/after a trial;
     # once set we never clear it, so a re-subscribe skips the trial.
-    trial_end = _to_dt(obj.get("trial_end"))
+    trial_end = _to_dt(_field(obj, "trial_end"))
     if trial_end is not None:
         account.trial_ends_at = trial_end
 
@@ -452,16 +475,16 @@ async def _upsert_subscription(session: AsyncSession, account: Account, obj: Any
     if sub is None:
         sub = Subscription(account_id=account.id)
         session.add(sub)
-    sub.stripe_customer_id = obj.get("customer")
-    sub.stripe_subscription_id = obj.get("id")
+    sub.stripe_customer_id = _field(obj, "customer")
+    sub.stripe_subscription_id = _field(obj, "id")
     sub.stripe_price_id = price_id
     sub.status = status
     sub.plan = tier
-    sub.cancel_at_period_end = bool(obj.get("cancel_at_period_end"))
+    sub.cancel_at_period_end = bool(_field(obj, "cancel_at_period_end"))
     # `current_period_end` moved from the subscription object onto the
     # subscription item in Stripe API 2025-03-31.basil+. Read the item first,
     # falling back to the legacy top-level field for older API versions.
-    sub.current_period_end = _to_dt(item.get("current_period_end") or obj.get("current_period_end"))
+    sub.current_period_end = _to_dt(_field(item, "current_period_end") or _field(obj, "current_period_end"))
 
 
 async def _handle_subscription_deleted(session: AsyncSession, account: Account, obj: Any) -> None:
