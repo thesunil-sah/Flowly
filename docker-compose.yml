@@ -1,0 +1,159 @@
+# Flowly — self-contained test-server stack (all 6 services on one box).
+#
+# This is for standing the WHOLE app up on your own server to exercise every
+# feature — NOT the production deploy (that's render.yaml / DEPLOY.md). It runs
+# its own Postgres, ClickHouse, and Redis in containers, so nothing external is
+# required except Docker.
+#
+#   1. cp .env.server.example .env.server   # then edit SERVER_IP + secrets
+#   2. docker compose --env-file .env.server up -d --build
+#   3. open  http://SERVER_IP:3000
+#
+# NOTE: NEXT_PUBLIC_* are baked into the web bundle at BUILD time (build args),
+# so if you change SERVER_IP you must rebuild the web image:
+#   docker compose --env-file .env.server up -d --build web
+#
+# Full runbook: SERVER-TEST.md
+
+# Shared runtime env for the API image (used by both the API and the workers).
+# YAML anchor so the API + batch-writer stay in lockstep.
+x-api-environment: &api-env
+  ENVIRONMENT: ${ENVIRONMENT:-local}
+  API_BASE_URL: http://${SERVER_IP}:8000
+  WEB_BASE_URL: http://${SERVER_IP}:3000
+  JWT_SECRET: ${JWT_SECRET}
+  DATABASE_URL: postgresql+asyncpg://flowly:${POSTGRES_PASSWORD}@postgres:5432/flowly
+  CLICKHOUSE_HOST: clickhouse
+  CLICKHOUSE_PORT: "8123"
+  CLICKHOUSE_SECURE: "false"
+  CLICKHOUSE_USER: default
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+  CLICKHOUSE_DB: default
+  REDIS_URL: redis://redis:6379/0
+  VISITOR_SALT_SECRET: ${VISITOR_SALT_SECRET}
+  TRACKER_SCRIPT_URL: http://${SERVER_IP}:8000/script.js
+  # Optional integrations — blank means the feature degrades gracefully.
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_METERED: ${STRIPE_PRICE_METERED:-}
+  STRIPE_METER_EVENT: ${STRIPE_METER_EVENT:-pageviews}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+  GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+  EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+  EMAIL_FROM: ${EMAIL_FROM:-Flowly <noreply@flowly.local>}
+  CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  UPTIME_ENABLED: ${UPTIME_ENABLED:-false}
+
+services:
+  # ── Backing services ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowly
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: flowly
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowly -d flowly"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: default
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - chdata:/var/lib/clickhouse
+      - chlogs:/var/log/clickhouse-server
+    healthcheck:
+      # HTTP interface (8123) is what clickhouse-connect uses; /ping needs no auth,
+      # but we prove auth too so a bad password fails fast here, not at insert time.
+      test: ["CMD-SHELL", "clickhouse-client --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1' >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Flowly application ──────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: flowly-api:test
+    restart: unless-stopped
+    environment: *api-env
+    # Apply Postgres + ClickHouse migrations on every start (idempotent), then serve.
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.db.clickhouse --migrate &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Always-on worker: drains the Redis ingest stream into ClickHouse. Without it,
+  # events reach Live (Redis) but never Overview (ClickHouse). Shares the API image.
+  batch-writer:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: flowly-api:test
+    restart: unless-stopped
+    environment: *api-env
+    command: ["python", "-m", "app.workers.batch_writer"]
+    depends_on:
+      clickhouse: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Inlined into the browser bundle at build time — rebuild to change.
+        NEXT_PUBLIC_API_URL: http://${SERVER_IP}:8000
+        NEXT_PUBLIC_DEMO_SHARE_TOKEN: ${NEXT_PUBLIC_DEMO_SHARE_TOKEN:-}
+    image: flowly-web:test
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      api: { condition: service_started }
+
+volumes:
+  pgdata:
+  chdata:
+  chlogs:
+  redisdata:
